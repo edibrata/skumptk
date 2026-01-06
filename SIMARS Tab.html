@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIMARS | SKUMPTK - KP4 Digital</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PDF Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Excel Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyC6IXCk6EXm0ndord8Is6cRZf_mG2MY5UM",
+            authDomain: "kedinasan-d9051.firebaseapp.com",
+            projectId: "kedinasan-d9051",
+            storageBucket: "kedinasan-d9051.firebasestorage.app",
+            messagingSenderId: "488517479224",
+            appId: "1:488517479224:web:57ed244cf69e2a010c6fcd"
+        };
+
+        const appId = "kedinasan-admin-v1";
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        window.state = {
+            user: null,
+            activeTab: 'dashboard',
+            database: [],
+            templates: [],
+            selectedTemplateId: '',
+            currentIndex: 0,
+            templateContent: '',
+            processedHtml: '',
+            anakCount: 0,
+            searchQuery: '',
+            filterUnit: '',
+            gasUrl: 'https://script.google.com/macros/s/AKfycbyN6Mev2ZBd9rT88fXxrK74zimiLZFgue2-hXDOjYmYkuhCUH-qy6zqpQCcLU1NoXmx/exec'
+        };
+
+        const listPangkatPNS = [
+            "Pengatur Muda, II/a", "Pengatur Muda Tingkat I, II/b", "Pengatur, II/c", "Pengatur Tingkat I, II/d",
+            "Penata Muda, III/a", "Penata Muda Tingkat I, III/b", "Penata, III/c", "Penata Tingkat I, III/d",
+            "Pembina, IV/a", "Pembina Tingkat I, IV/b", "Pembina Utama Muda, IV/c", "Pembina Utama Madya, IV/d", "Pembina Utama, IV/e"
+        ];
+
+        const listPangkatPPPK = [
+            "Golongan I", "Golongan II", "Golongan III", "Golongan IV", "Golongan V", "Golongan VI", 
+            "Golongan VII", "Golongan VIII", "Golongan IX", "Golongan X", "Golongan XI", "Golongan XII", 
+            "Golongan XIII", "Golongan XIV", "Golongan XV", "Golongan XVI", "Golongan XVII"
+        ];
+
+        window.updatePangkatDropdown = (statusVal, containerId, fieldName, currentPangkat = '') => {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            let html = '';
+            const commonClasses = "w-full px-4 py-2 bg-slate-50 rounded-xlg outline-none mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner font-bold";
+            const commonClassesEdit = "w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 focus:ring-4 focus:ring-blue-100";
+
+            if (statusVal === 'PNS') {
+                html = `<select name="${fieldName}" class="${containerId.includes('edit') ? commonClassesEdit : commonClasses}">
+                            <option value="">--Pilih Pangkat, Gol/Ruang PNS--</option>
+                            ${listPangkatPNS.map(p => `<option value="${p}" ${p === currentPangkat ? 'selected' : ''}>${p}</option>`).join('')}
+                        </select>`;
+            } else if (statusVal === 'PPPK') {
+                html = `<select name="${fieldName}" class="${containerId.includes('edit') ? commonClassesEdit : commonClasses}">
+                            <option value="">--Pilih Golongan PPPK--</option>
+                            ${listPangkatPPPK.map(p => `<option value="${p}" ${p === currentPangkat ? 'selected' : ''}>${p}</option>`).join('')}
+                        </select>`;
+            } else {
+                html = `<input type="text" name="${fieldName}" value="${currentPangkat || '---'}" class="${containerId.includes('edit') ? commonClassesEdit : commonClasses}">`;
+            }
+            container.innerHTML = html;
+        };
+
+        function getFormattedTimestamp() {
+            const now = new Date();
+            const YYYY = now.getFullYear();
+            const MM = String(now.getMonth() + 1).padStart(2, '0');
+            const DD = String(now.getDate()).padStart(2, '0');
+            const HH = String(now.getHours()).padStart(2, '0');
+            const SS = String(now.getSeconds()).padStart(2, '0');
+            return `${YYYY}${MM}${DD} ${HH}.${SS}`;
+        }
+
+        function angkaKeTeks(n) {
+            const num = parseInt(n);
+            if (num === 0) return "nol";
+            if (isNaN(num)) return "";
+            const words = ["", "satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "delapan", "sembilan", "sepuluh", "sebelas"];
+            if (num < 12) return words[num];
+            if (num < 20) return words[num - 10] + " belas";
+            if (num < 100) return words[Math.floor(num / 10)] + " puluh " + (num % 10 !== 0 ? words[num % 10] : "");
+            return num.toString();
+        }
+
+        const showToast = (msg) => {
+            const toast = document.getElementById('toast');
+            if(!toast) return;
+            toast.textContent = msg;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 4000);
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            window.state.user = user;
+            if (user) {
+                loadData();
+                loadTemplates();
+            } else {
+                signInAnonymously(auth);
+            }
+        });
+
+        async function loadData() {
+            const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'pegawai');
+            onSnapshot(collRef, (snapshot) => {
+                window.state.database = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderDatabase();
+                updateDashboard();
+                if(window.state.activeTab === 'produksi') renderRecipientView();
+                renderFilterOptions();
+            });
+        }
+
+        async function loadTemplates() {
+            const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'templates');
+            onSnapshot(collRef, (snapshot) => {
+                window.state.templates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderTemplateDropdown();
+            });
+        }
+
+        window.toggleModal = (id) => {
+            const modal = document.getElementById(id);
+            if(!modal) return;
+            modal.classList.toggle('hidden');
+            modal.classList.toggle('flex');
+        };
+
+        window.tambahAnak = () => {
+            window.state.anakCount++;
+            const container = document.getElementById('anak-inputs-container');
+            if(!container) return;
+            const div = document.createElement('div');
+            div.className = "p-4 bg-white rounded-xl mb-4 border border-slate-200 shadow-sm text-left";
+            div.innerHTML = `
+                <div class="flex justify-between items-center mb-3 text-blue-600 font-black uppercase text-[10px]">Data Anak Ke-${window.state.anakCount}</div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest text-left">Nama Anak</label>
+                    <input type="text" name="modal_anak_${window.state.anakCount}_nama" class="w-full px-3 py-2 rounded-xlg bg-slate-50 border-none mt-1 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest text-left">Tempat, Tgl Lahir</label>
+                    <input type="text" name="modal_anak_${window.state.anakCount}_ttl" class="w-full px-3 py-2 rounded-xlg bg-slate-50 border-none mt-1 text-sm outline-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
+                    <div class="col-span-2 text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest text-left">Pekerjaan / Sekolah</label>
+                    <input type="text" name="modal_anak_${window.state.anakCount}_pekerjaan" class="w-full px-3 py-2 rounded-xlg bg-slate-50 border-none mt-1 text-sm outline-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
+                </div>
+            `;
+            container.appendChild(div);
+        };
+
+        window.simpanModalPasangan = () => {
+            const nama = document.getElementById('modal_si_nama').value;
+            const tempat = document.getElementById('modal_si_tempat').value;
+            const tgl = document.getElementById('modal_si_tgl').value;
+            const nikah = document.getElementById('modal_si_nikah').value;
+            const pekerjaan = document.getElementById('modal_si_pekerjaan').value;
+            const status = document.getElementById('modal_si_status').value;
+            
+            document.querySelector('input[name="si_nama"]').value = nama;
+            document.querySelector('input[name="si_tempat_lahir"]').value = tempat;
+            document.querySelector('input[name="si_tanggal_lahir"]').value = tgl;
+            document.querySelector('input[name="si_tanggal_nikah"]').value = nikah;
+            document.querySelector('input[name="si_pekerjaan"]').value = pekerjaan;
+            document.querySelector('input[name="si_status"]').value = status;
+
+            const btnPasangan = document.getElementById('btn-pasangan-toggle');
+            if(btnPasangan) btnPasangan.textContent = "Edit Pasangan";
+
+            const ttl = (tempat || '') + (tgl ? ', ' + tgl : '');
+            const row = document.getElementById('row-pasangan');
+            if(row) {
+                row.innerHTML = `
+                    <td class="p-3 border text-xs font-bold text-left">${nama || '-'}</td>
+                    <td class="p-3 border text-xs text-left">${ttl || '-'}</td>
+                    <td class="p-3 border text-xs text-left">${pekerjaan || '-'}</td>
+                    <td class="p-3 border text-xs text-blue-600 text-center font-bold uppercase">${status || 'Istri / Suami'}</td>
+                `;
+            }
+            window.toggleModal('modal-pasangan');
+        };
+
+        window.simpanModalAnak = () => {
+            const container = document.getElementById('anak-summary-body');
+            const hiddenContainer = document.getElementById('hidden-modal-inputs');
+            if(!container || !hiddenContainer) return;
+
+            container.innerHTML = '';
+            const oldInputs = hiddenContainer.querySelectorAll('input[name^="anak_"]');
+            oldInputs.forEach(input => input.remove());
+
+            for(let i=1; i <= window.state.anakCount; i++) {
+                const nama = document.querySelector(`input[name="modal_anak_${i}_nama"]`).value;
+                const ttl = document.querySelector(`input[name="modal_anak_${i}_ttl"]`).value;
+                const pekerjaan = document.querySelector(`input[name="modal_anak_${i}_pekerjaan"]`).value;
+                
+                container.innerHTML += `
+                    <tr class="bg-white">
+                        <td class="p-3 border text-xs font-bold text-left">${nama || '-'}</td>
+                        <td class="p-3 border text-xs text-left">${ttl || '-'}</td>
+                        <td class="p-3 border text-xs text-left">${pekerjaan || '-'}</td>
+                        <td class="p-3 border text-xs text-indigo-500 text-center uppercase font-bold">Anak</td>
+                    </tr>
+                `;
+
+                const hNama = document.createElement('input'); hNama.type = 'hidden'; hNama.name = `anak_${i}_nama`; hNama.value = nama;
+                const hTtl = document.createElement('input'); hTtl.type = 'hidden'; hTtl.name = `anak_${i}_ttl`; hTtl.value = ttl;
+                const hKerja = document.createElement('input'); hKerja.type = 'hidden'; hKerja.name = `anak_${i}_pekerjaan`; hKerja.value = pekerjaan;
+                
+                hiddenContainer.appendChild(hNama);
+                hiddenContainer.appendChild(hTtl);
+                hiddenContainer.appendChild(hKerja);
+            }
+            document.getElementById('form_jumlah_anak').value = window.state.anakCount;
+            window.toggleModal('modal-anak');
+        };
+
+        window.resetAnak = () => {
+            window.state.anakCount = 0;
+            const inputsContainer = document.getElementById('anak-inputs-container');
+            const summaryBody = document.getElementById('anak-summary-body');
+            const hiddenContainer = document.getElementById('hidden-modal-inputs');
+            
+            if(inputsContainer) inputsContainer.innerHTML = '';
+            if(summaryBody) summaryBody.innerHTML = '';
+            if(hiddenContainer) {
+                const oldInputs = hiddenContainer.querySelectorAll('input[name^="anak_"]');
+                oldInputs.forEach(input => input.remove());
+            }
+            const jmAnak = document.getElementById('form_jumlah_anak');
+            if(jmAnak) jmAnak.value = 0;
+        }
+
+        window.saveData = async (e) => {
+            e.preventDefault();
+            const data = Object.fromEntries(new FormData(e.target).entries());
+            try {
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'pegawai'), data);
+                showToast("Data SKUMPTK Berhasil Disimpan");
+                e.target.reset();
+                window.resetAnak();
+                const btnPasangan = document.getElementById('btn-pasangan-toggle');
+                if(btnPasangan) btnPasangan.textContent = "+ Isi Data Pasangan";
+                const rowPasangan = document.getElementById('row-pasangan');
+                if(rowPasangan) rowPasangan.innerHTML = `<td colspan="4" class="p-4 text-center text-slate-300 text-xs text-left">Belum ada data Pasangan</td>`;
+                window.updatePangkatDropdown('', 'pangkat-container', 'pangkat');
+                window.switchTab('dashboard');
+            } catch (err) { showToast("Gagal menyimpan data."); }
+        };
+
+        window.openDetailPegawai = (id) => {
+            const person = window.state.database.find(p => p.id === id);
+            if(!person) return;
+            
+            const form = document.getElementById('form-edit-pegawai');
+            if(!form) return;
+            form.querySelector('input[name="id"]').value = person.id;
+            
+            const statusInput = form.querySelector('select[name="status_pegawai"]');
+            if(statusInput) {
+                statusInput.value = person.status_pegawai || '';
+                window.updatePangkatDropdown(statusInput.value, 'edit-pangkat-container', 'pangkat', person.pangkat);
+            }
+
+            Object.keys(person).forEach(key => {
+                const input = form.querySelector(`input[name="${key}"], select[name="${key}"]`);
+                if(input && key !== 'pangkat' && key !== 'status_pegawai') input.value = person[key];
+            });
+
+            const familyBody = document.getElementById('edit-family-summary-body');
+            const editJumlahAnak = document.getElementById('edit_jumlah_anak');
+            if(editJumlahAnak) editJumlahAnak.value = person.jumlah_anak || 0;
+
+            if(familyBody) {
+                let rows = `
+                    <tr class="bg-blue-50/30">
+                        <td class="p-1 border text-left"><input type="text" name="si_nama" value="${person.si_nama || ''}" class="w-full bg-transparent border-none outline-none text-[10px] font-bold p-1 focus:bg-white rounded"></td>
+                        <td class="p-1 border flex gap-1 items-center text-left">
+                            <input type="text" name="si_tempat_lahir" value="${person.si_tempat_lahir || ''}" placeholder="Tempat" class="w-1/2 bg-transparent border-none outline-none text-[10px] p-1 focus:bg-white rounded">
+                            <span class="text-slate-300">,</span>
+                            <input type="text" name="si_tanggal_lahir" value="${person.si_tanggal_lahir || ''}" placeholder="Tgl" class="w-1/2 bg-transparent border-none outline-none text-[10px] p-1 focus:bg-white rounded">
+                        </td>
+                        <td class="p-1 border text-left"><input type="text" name="si_pekerjaan" value="${person.si_pekerjaan || ''}" class="w-full bg-transparent border-none outline-none text-[10px] font-bold p-1 focus:bg-white rounded"></td>
+                        <td class="p-1 border text-center text-blue-600 font-black text-[8px] uppercase">
+                            <select name="si_status" class="bg-transparent border-none outline-none font-black text-center w-full appearance-none cursor-pointer">
+                                <option value="Istri" ${person.si_status === 'Istri' ? 'selected' : ''}>Istri</option>
+                                <option value="Suami" ${person.si_status === 'Suami' ? 'selected' : ''}>Suami</option>
+                            </select>
+                        </td>
+                        <td class="p-1 border text-center opacity-20"><svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636"></path></svg></td>
+                    </tr>
+                `;
+                const jmlAnak = parseInt(person.jumlah_anak || 0);
+                for(let i=1; i<=jmlAnak; i++) {
+                    rows += `
+                        <tr data-child-row="${i}">
+                            <td class="p-1 border text-left"><input type="text" name="anak_${i}_nama" value="${person[`anak_${i}_nama`] || ''}" class="w-full bg-transparent border-none outline-none text-[10px] font-bold p-1 focus:bg-white rounded"></td>
+                            <td class="p-1 border text-left"><input type="text" name="anak_${i}_ttl" value="${person[`anak_${i}_ttl`] || ''}" class="w-full bg-transparent border-none outline-none text-[10px] p-1 focus:bg-white rounded"></td>
+                            <td class="p-1 border text-left"><input type="text" name="anak_${i}_pekerjaan" value="${person[`anak_${i}_pekerjaan`] || ''}" class="w-full bg-transparent border-none outline-none text-[10px] p-1 focus:bg-white rounded"></td>
+                            <td class="p-1 border text-center text-indigo-500 font-black text-[8px] uppercase">Anak ${i}</td>
+                            <td class="p-1 border text-center">
+                                <button type="button" onclick="this.closest('tr').remove();" class="text-red-400 hover:text-red-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                            </td>
+                        </tr>
+                    `;
+                }
+                familyBody.innerHTML = rows;
+            }
+            window.toggleModal('modal-edit-pegawai');
+        };
+
+        window.addEditChildRow = () => {
+            const tableBody = document.getElementById('edit-family-summary-body');
+            const hiddenCountInput = document.getElementById('edit_jumlah_anak');
+            if(!tableBody || !hiddenCountInput) return;
+            let currentCount = parseInt(hiddenCountInput.value) || 0;
+            currentCount++;
+            hiddenCountInput.value = currentCount;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="p-1 border text-left"><input type="text" name="anak_${currentCount}_nama" class="w-full bg-transparent border-none outline-none text-[10px] font-bold p-1 focus:bg-white rounded"></td>
+                <td class="p-1 border text-left"><input type="text" name="anak_${currentCount}_ttl" class="w-full bg-transparent border-none outline-none text-[10px] p-1 focus:bg-white rounded"></td>
+                <td class="p-1 border text-left"><input type="text" name="anak_${currentCount}_pekerjaan" class="w-full bg-transparent border-none outline-none text-[10px] p-1 focus:bg-white rounded"></td>
+                <td class="p-1 border text-center text-indigo-500 font-black text-[8px] uppercase">Anak ${currentCount}</td>
+                <td class="p-1 border text-center"><button type="button" onclick="this.closest('tr').remove();" class="text-red-400 hover:text-red-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button></td>
+            `;
+            tableBody.appendChild(tr);
+        };
+
+        window.updatePegawai = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+            const docId = data.id;
+            delete data.id;
+            const childRows = document.getElementById('edit-family-summary-body').querySelectorAll('tr[data-child-row], tr:has(button[onclick*="remove"])');
+            data.jumlah_anak = childRows.length;
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'pegawai', docId);
+                await updateDoc(docRef, data);
+                showToast("Data Pegawai Berhasil Diperbarui");
+                window.toggleModal('modal-edit-pegawai');
+            } catch (err) { showToast("Gagal memperbarui data."); }
+        };
+
+        window.deleteItem = async (coll, id) => {
+            if (confirm("Hapus data ini secara permanen?")) {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', coll, id));
+                showToast("Dihapus");
+            }
+        };
+
+        window.switchTab = (tabId) => {
+            window.state.activeTab = tabId;
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            const tab = document.getElementById(tabId);
+            if(tab) tab.classList.remove('hidden');
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-50', 'text-blue-600', 'border-blue-600');
+                if (btn.dataset.tab === tabId) btn.classList.add('bg-blue-50', 'text-blue-600', 'border-blue-600');
+            });
+            if(tabId === 'produksi') renderRecipientView();
+            if(tabId === 'database') renderDatabase();
+            if(tabId === 'dashboard') updateDashboard();
+        };
+
+        function updateDashboard() {
+            const statTotal = document.getElementById('stat-total');
+            if(statTotal) statTotal.textContent = window.state.database.length;
+            const dashboardGrid = document.getElementById('dashboard-grid-container');
+            if(!dashboardGrid) return;
+            const newestData = [...window.state.database].reverse();
+            if (newestData.length === 0) {
+                dashboardGrid.innerHTML = `<div class="col-span-full p-10 text-center text-slate-300 font-bold text-[10px] uppercase tracking-widest text-left">Belum ada data masuk.</div>`;
+                return;
+            }
+            dashboardGrid.innerHTML = newestData.map(item => `
+                <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between text-left">
+                    <div class="flex items-center gap-4">
+                        <div class="bg-blue-50 text-blue-600 p-3 rounded-xl"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></div>
+                        <div>
+                            <h4 class="font-black text-slate-800 text-xs leading-none uppercase">${item.nama || 'Tanpa Nama'}</h4>
+                            <p class="text-[9px] font-mono text-slate-400 mt-1">NIP. ${item.nip || '-'}</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[8px] font-black uppercase text-slate-300 tracking-tighter">Unit Kerja</p>
+                        <p class="text-[10px] font-bold text-blue-600 truncate max-w-[150px]">${item.unit || '-'}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderFilterOptions() {
+            const el = document.getElementById('db-filter-unit');
+            if(!el) return;
+            const units = [...new Set(window.state.database.map(p => p.unit).filter(Boolean))];
+            el.innerHTML = '<option value="">Semua Unit Kerja</option>' + units.map(u => `<option value="${u}">${u}</option>`).join('');
+        }
+
+        window.handleSearch = (val) => { window.state.searchQuery = val.toLowerCase(); renderDatabase(); };
+        window.handleFilter = (val) => { window.state.filterUnit = val; renderDatabase(); };
+
+        function renderDatabase() {
+            const container = document.getElementById('db-grid-container');
+            if(!container) return;
+            let filtered = window.state.database;
+            if(window.state.searchQuery) {
+                filtered = filtered.filter(p => (p.nama || '').toLowerCase().includes(window.state.searchQuery) || (p.nip || '').includes(window.state.searchQuery));
+            }
+            if(window.state.filterUnit) {
+                filtered = filtered.filter(p => p.unit === window.state.filterUnit);
+            }
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="col-span-full p-20 text-center text-slate-400 font-medium text-left">Tidak ada data yang cocok.</div>`;
+                return;
+            }
+            container.innerHTML = filtered.map(item => `
+                <div class="group bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden text-left">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-blue-50/50 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div class="relative z-10 text-left">
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="bg-blue-600 w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-100"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></div>
+                            <div class="flex gap-1"><button onclick="deleteItem('pegawai', '${item.id}')" class="text-slate-300 hover:text-red-500 p-2 rounded-xl hover:bg-red-50 transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button></div>
+                        </div>
+                        <a href="javascript:void(0)" onclick="openDetailPegawai('${item.id}')" class="block group/link">
+                            <h4 class="font-black text-slate-900 text-lg group-hover/link:text-blue-600 transition-colors tracking-tight line-clamp-1">${item.nama || 'Tanpa Nama'}</h4>
+                            <p class="text-[10px] font-mono text-slate-400 mt-1">NIP. ${item.nip || '-'}</p>
+                        </a>
+                        <div class="mt-6 pt-6 border-t border-slate-50 flex items-center justify-between">
+                            <div><p class="text-[9px] font-black uppercase text-slate-300 tracking-widest">Unit Kerja</p><p class="text-xs font-bold text-blue-600 mt-1">${item.unit || '-'}</p></div>
+                            <div class="text-right"><p class="text-[9px] font-black uppercase text-slate-300 tracking-widest">Pangkat</p><p class="text-[10px] font-semibold text-slate-600 mt-1">${item.pangkat || '-'}</p></div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.downloadTemplate = () => {
+            const headers = [[
+                'NAMA LENGKAP', 'NIP', 'PANGKAT/GOL', 'UNIT KERJA', 'ALAMAT UNIT', 'TELP UNIT', 'INSTANSI', 
+                'STATUS PEGAWAI', 'NPWP', 'TEMPAT LAHIR', 'TANGGAL LAHIR', 'JENIS KELAMIN', 'AGAMA', 
+                'ALAMAT', 'EMAIL', 'NO HP', 'KEPALA INSTANSI', 'NIP KEPALA', 'JUMLAH ANAK', 
+                'NAMA PASANGAN', 'STATUS PASANGAN', 'TEMPAT LAHIR PASANGAN', 'TANGGAL LAHIR PASANGAN', 
+                'TANGGAL NIKAH', 'PEKERJAAN PASANGAN'
+            ]];
+            const ws = XLSX.utils.aoa_to_sheet(headers);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Daftar Pegawai");
+            const filename = `Template Daftar Pegawai SKUMPTK ${getFormattedTimestamp()}.xlsx`;
+            XLSX.writeFile(wb, filename);
+            showToast("Template Berhasil Diunduh");
+        };
+
+        window.exportDatabase = (type) => {
+            const data = window.state.database.map(p => {
+                const row = {
+                    'NAMA LENGKAP': p.nama || '-',
+                    'NIP': p.nip || '-',
+                    'PANGKAT/GOL': p.pangkat || '-',
+                    'UNIT KERJA': p.unit || '-',
+                    'ALAMAT UNIT': p.alamat_unit || '-',
+                    'TELP UNIT': p.telp_unit || '-',
+                    'INSTANSI': p.instansi || '-',
+                    'STATUS PEGAWAI': p.status_pegawai || '-',
+                    'NPWP': p.npwp || '-',
+                    'TEMPAT LAHIR': p.tempat_lahir || '-',
+                    'TANGGAL LAHIR': p.tanggal_lahir || '-',
+                    'JENIS KELAMIN': p.jenis_kelamin || '-',
+                    'AGAMA': p.agama || '-',
+                    'ALAMAT': p.alamat || '-',
+                    'EMAIL': p.email || '-',
+                    'NO HP': p.no_hp || '-',
+                    'KEPALA INSTANSI': p.kepala_instansi_nama || '-',
+                    'NIP KEPALA': p.kepala_instansi_nip || '-',
+                    'JUMLAH ANAK': p.jumlah_anak || '0',
+                    'NAMA PASANGAN': p.si_nama || '-',
+                    'STATUS PASANGAN': p.si_status || '-',
+                    'TEMPAT LAHIR PASANGAN': p.si_tempat_lahir || '-',
+                    'TANGGAL LAHIR PASANGAN': p.si_tanggal_lahir || '-',
+                    'TANGGAL NIKAH': p.si_tanggal_nikah || '-',
+                    'PEKERJAAN PASANGAN': p.si_pekerjaan || '-'
+                };
+                const maxAnak = parseInt(p.jumlah_anak || 0);
+                for(let i=1; i<=maxAnak; i++) {
+                    row[`ANAK ${i} NAMA`] = p[`anak_${i}_nama`] || '-';
+                    row[`ANAK ${i} TTL`] = p[`anak_${i}_ttl`] || '-';
+                    row[`ANAK ${i} PEKERJAAN`] = p[`anak_${i}_pekerjaan`] || '-';
+                }
+                return row;
+            });
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Data Pegawai");
+            const filename = `SKUMPTK Data Pegawai ${getFormattedTimestamp()}.${type}`;
+            XLSX.writeFile(wb, filename);
+            showToast(`Data Berhasil Diekspor ke ${type.toUpperCase()}`);
+        };
+
+        window.triggerImport = () => {
+            document.getElementById('import-file-input').click();
+        };
+
+        window.handleImport = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(sheet);
+                showToast(`Mengimpor ${rows.length} Data...`);
+                let successCount = 0;
+                for (const row of rows) {
+                    const mappedData = {
+                        nama: row['NAMA LENGKAP'] || '',
+                        nip: row['NIP'] || '',
+                        pangkat: row['PANGKAT/GOL'] || '',
+                        unit: row['UNIT KERJA'] || '',
+                        alamat_unit: row['ALAMAT UNIT'] || '',
+                        telp_unit: row['TELP UNIT'] || '',
+                        instansi: row['INSTANSI'] || '',
+                        status_pegawai: row['STATUS PEGAWAI'] || '',
+                        npwp: row['NPWP'] || '',
+                        tempat_lahir: row['TEMPAT LAHIR'] || '',
+                        tanggal_lahir: row['TANGGAL LAHIR'] || '',
+                        jenis_kelamin: row['JENIS KELAMIN'] || '',
+                        agama: row['AGAMA'] || '',
+                        alamat: row['ALAMAT'] || '',
+                        email: row['EMAIL'] || '',
+                        no_hp: row['NO HP'] || '',
+                        kepala_instansi_nama: row['KEPALA INSTANSI'] || '',
+                        kepala_instansi_nip: row['NIP KEPALA'] || '',
+                        jumlah_anak: row['JUMLAH ANAK'] || '0',
+                        si_nama: row['NAMA PASANGAN'] || '',
+                        si_status: row['STATUS PASANGAN'] || '',
+                        si_tempat_lahir: row['TEMPAT LAHIR PASANGAN'] || '',
+                        si_tanggal_lahir: row['TANGGAL LAHIR PASANGAN'] || '',
+                        si_tanggal_nikah: row['TANGGAL NIKAH'] || '',
+                        si_pekerjaan: row['PEKERJAAN PASANGAN'] || ''
+                    };
+                    for (let i = 1; i <= 5; i++) {
+                        if (row[`ANAK ${i} NAMA`]) {
+                            mappedData[`anak_${i}_nama`] = row[`ANAK ${i} NAMA`];
+                            mappedData[`anak_${i}_ttl`] = row[`ANAK ${i} TTL`];
+                            mappedData[`anak_${i}_pekerjaan`] = row[`ANAK ${i} PEKERJAAN`];
+                        }
+                    }
+                    try {
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'pegawai'), mappedData);
+                        successCount++;
+                    } catch (err) { console.error("Gagal impor baris", err); }
+                }
+                showToast(`${successCount} Data Berhasil Diimpor`);
+                event.target.value = '';
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        function renderTemplateDropdown() {
+            const el = document.getElementById('select-template-merge');
+            if(!el) return;
+            const currentVal = el.value;
+            el.innerHTML = `<option value="">-- Pilih Jenis Surat --</option>
+                <option value="standard" selected>Format SKUMPTK - KP4 (Cadangan)</option>` + 
+                window.state.templates.map(t => `<option value="${t.docId}" ${currentVal === t.docId ? 'selected' : ''}>${t.nama}</option>`).join('');
+        }
+
+        const getFallbackTemplate = (data) => {
+            let rows = `
+                <tr>
+                    <td style="border: 1px solid black; padding: 4px; height: 18px; text-align: left;">${data.si_nama || '-'}</td>
+                    <td style="border: 1px solid black; padding: 4px; text-align: left;">${(data.si_tempat_lahir || '') + (data.si_tanggal_lahir ? ', ' + data.si_tanggal_lahir : '') || '-'}</td>
+                    <td style="border: 1px solid black; padding: 4px; text-align: center;">${data.si_tanggal_nikah || ''}</td>
+                    <td style="border: 1px solid black; padding: 4px; text-align: left;">${data.si_pekerjaan || '-'}</td>
+                    <td style="border: 1px solid black; padding: 4px; text-align: center;">${data.si_status || 'Istri / Suami'}</td>
+                </tr>
+            `;
+            const jmlAnak = parseInt(data.jumlah_anak || 0);
+            for (let i = 1; i <= jmlAnak; i++) {
+                rows += `
+                    <tr>
+                        <td style="border: 1px solid black; padding: 4px; height: 18px; text-align: left;">${data[`anak_${i}_nama`] || '-'}</td>
+                        <td style="border: 1px solid black; padding: 4px; text-align: left;">${data[`anak_${i}_ttl`] || '-'}</td>
+                        <td style="border: 1px solid black; padding: 4px; text-align: center;">-</td>
+                        <td style="border: 1px solid black; padding: 4px; text-align: left;">${data[`anak_${i}_pekerjaan`] || '-'}</td>
+                        <td style="border: 1px solid black; padding: 4px; text-align: center;">Anak</td>
+                    </tr>
+                `;
+            }
+            const lokasi = document.getElementById('prod_lokasi_ttd')?.value || data.lokasi_ttd || 'Pandeglang';
+            const tanggal = document.getElementById('prod_tanggal_ttd')?.value || data.tanggal_ttd || '..................... 2026';
+            return `
+            <div class="print-page" id="skumptk-capture-area" style="font-family: 'Times New Roman', Times, serif; padding: 12mm 18mm; line-height: 1.1; color: black; font-size: 12pt; background: white; text-align: left; box-sizing: border-box; width: 210mm; min-height: 297mm; overflow: hidden;">
+                <div style="text-align: center; margin-bottom: 15px;">
+                    <h2 style="margin:0; font-size: 13pt; font-weight: bold; text-transform: uppercase;">SURAT KETERANGAN</h2>
+                    <h3 style="margin:0; font-size: 13pt; font-weight: bold; text-transform: uppercase;">UNTUK MENDAPATKAN PEMBAYARAN TUNJANGAN KELUARGA</h3>
+                    <div style="display: inline-block; margin-top: 4px;"><p style="margin:0; font-size: 12pt; font-weight: bold;">(SKUMPTK/KP-4)</p></div>
+                </div>
+                <p style="margin-bottom: 5px;">Yang bertanda tangan di bawah ini:</p>
+                <table style="width: 100%; margin-bottom: 10px; border-collapse: collapse; font-size: 12pt;">
+                    <tr style="vertical-align: top;"><td width="30">1.</td><td width="190">Nama</td><td width="15">:</td><td style="font-weight: bold; border-bottom: 1px dotted #000;">{{nama}}</td></tr>
+                    <tr style="vertical-align: top;"><td>2.</td><td>NIP</td><td>:</td><td style="border-bottom: 1px dotted #000;">{{nip}}</td></tr>
+                    <tr style="vertical-align: top;"><td>3.</td><td>Tempat Lahir</td><td>:</td><td style="border-bottom: 1px dotted #000;">{{tempat_lahir}}</td></tr>
+                    <tr style="vertical-align: top;"><td>4.</td><td>Tanggal Lahir</td><td>:</td><td style="border-bottom: 1px dotted #000;">{{tanggal_lahir}}</td></tr>
+                    <tr style="vertical-align: top;"><td>5.</td><td>Jenis Kelamin</td><td>:</td><td style="border-bottom: 1px dotted #000;">{{jenis_kelamin}}</td></tr>
+                    <tr style="vertical-align: top;"><td>6.</td><td>Agama</td><td>:</td><td style="border-bottom: 1px dotted #000;">{{agama}}</td></tr>
+                    <tr style="vertical-align: top;"><td>7.</td><td>Alamat Tempat Tinggal</td><td>:</td><td style="border-bottom: 1px dotted #000;">{{alamat}}</td></tr>
+                    <tr style="vertical-align: top;"><td>8.</td><td>NPWP</td><td>:</td><td style="border-bottom: 1px dotted #000;">{{npwp}}</td></tr>
+                    <tr style="vertical-align: top;"><td>9.</td><td>No. Telp. / No. HP.</td><td>:</td><td style="border-bottom: 1px dotted #000;">{{no_hp}}</td></tr>
+                    <tr style="vertical-align: top;"><td>10.</td><td>Status Kepegawaian</td><td>:</td><td style="border-bottom: 1px dotted #000;">{{status_pegawai}}</td></tr>
+                    <tr style="vertical-align: top;"><td>11.</td><td>Pangkat/Gol. Ruang</td><td>:</td><td style="border-bottom: 1px dotted #000;">{{pangkat}}</td></tr>
+                    <tr style="vertical-align: top;"><td>12.</td><td>Unit Kerja</td><td>:</td><td style="border-bottom: 1px dotted #000;">{{unit}}</td></tr>
+                    <tr style="vertical-align: top;"><td>13.</td><td>Alamat Unit Kerja</td><td>:</td><td style="border-bottom: 1px dotted #000;">{{alamat_unit}}</td></tr>
+                    <tr style="vertical-align: top;"><td>14.</td><td>No. Telp. Unit Kerja</td><td>:</td><td style="border-bottom: 1px dotted #000;">{{telp_unit}}</td></tr>
+                    <tr style="vertical-align: top;"><td>15.</td><td>Instansi</td><td>:</td><td style="border-bottom: 1px dotted #000;">{{instansi}}</td></tr>
+                </table>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 5px; border: 1px solid black; text-align: center; font-size: 10.5pt;">
+                    <thead><tr style="background: #f1f1f1;"><th style="border: 1px solid black; padding: 4px;">Nama</th><th style="border: 1px solid black; padding: 4px;">Tempat, Tanggal Lahir</th><th style="border: 1px solid black; padding: 4px;">Tanggal Nikah</th><th style="border: 1px solid black; padding: 4px;">Pekerjaan</th><th style="border: 1px solid black; padding: 4px;">Keterangan</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                <p style="margin-top: 10px; font-size: 12pt;">Jumlah anak seluruhnya <b>{{jumlah_anak}} ({{jumlah_anak_terbilang}})</b> orang (yang ditanggung termasuk yang tidak masuk daftar gaji).</p>
+                <p style="text-align: justify; margin-top: 8px; font-size: 12pt; line-height: 1.2;">Keterangan ini Saya buat dengan sesungguhnya dan apabila keterangan ini ternyata tidak benar (palsu), saya bersedia dituntut di muka Pengadilan berdasarkan Undang-Undang yang berlaku dan bersedia mengembalikan semua penghasilan yang telah Saya terima yang seharusnya bukan hak Saya.</p>
+                <table style="width: 100%; margin-top: 25px; border-collapse: collapse; font-size: 12pt;">
+                    <tr>
+                        <td style="width: 50%; vertical-align: top; padding-left: 30mm;">Mengetahui:<br>Kepala Instansi,<br><br><br><br><br><span style="font-weight: bold;">${data.kepala_instansi_nama || '.........................................'}</span><br>NIP. ${data.kepala_instansi_nip || '...............................................'}</td>
+                        <td style="width: 50%; vertical-align: top; padding-left: 30mm;">${lokasi}, ${tanggal}<br>Yang Menerangkan,<br><br><br><br><br><span style="font-weight: bold;">${data.nama || '{{nama}}'}</span><br>NIP. ${data.nip || '{{nip}}'}</td>
+                    </tr>
+                </table>
+            </div>`;
+        };
+
+        window.runMailMerge = async () => {
+            const el = document.getElementById('select-template-merge');
+            if(!el) return;
+            const docId = el.value;
+            if (!docId) return;
+            window.state.selectedTemplateId = docId;
+            if (docId === 'standard') {
+                window.state.templateContent = 'STANDARD_PLACEHOLDER'; 
+                renderRecipientView();
+            } else {
+                showToast("Menghubungkan ke Google Docs...");
+                try {
+                    const cleanId = docId.includes('/') ? docId.split('/d/')[1]?.split('/')[0] || docId : docId;
+                    const res = await fetch(`${window.state.gasUrl}?action=getTemplate&id=${cleanId}`);
+                    const html = await res.text();
+                    window.state.templateContent = html;
+                    renderRecipientView();
+                } catch (e) {
+                    window.state.templateContent = 'STANDARD_PLACEHOLDER';
+                    showToast("Gagal menarik draf. Menggunakan Cadangan.");
+                    renderRecipientView();
+                }
+            }
+        };
+
+        function injectData(html, data) {
+            let output = html;
+            data.jumlah_anak_terbilang = angkaKeTeks(data.jumlah_anak || 0);
+            const lokasiVal = document.getElementById('prod_lokasi_ttd')?.value;
+            const tanggalVal = document.getElementById('prod_tanggal_ttd')?.value;
+            data.lokasi_ttd = lokasiVal || data.lokasi_ttd || 'Pandeglang';
+            data.tanggal_ttd = tanggalVal || data.tanggal_ttd || '..................... 2026';
+            for (const key in data) {
+                const value = data[key] || '-';
+                const pattern = key.split('').join('(?:<[^>]*>|&nbsp;|\\s)*');
+                const finalRegex = new RegExp(`\\{\\s*(?:<[^>]*>|&nbsp;|\\s)*\\{\\s*(?:<[^>]*>|&nbsp;|\\s)*${pattern}\\s*(?:<[^>]*>|&nbsp;|\\s)*\\}\\s*(?:<[^>]*>|&nbsp;|\\s)*\\}`, 'gi');
+                output = output.replace(finalRegex, value);
+            }
+            return output;
+        }
+
+        function renderRecipientView() {
+            if (window.state.database.length === 0) return;
+            const person = window.state.database[window.state.currentIndex];
+            if (window.state.database.length > 0 && window.state.selectedTemplateId) {
+                document.getElementById('production-controls')?.classList.remove('opacity-40', 'pointer-events-none');
+            }
+            if (!document.getElementById('prod_lokasi_ttd').dataset.manual) {
+                document.getElementById('prod_lokasi_ttd').value = person.lokasi_ttd || '';
+            }
+            if (!document.getElementById('prod_tanggal_ttd').dataset.manual) {
+                document.getElementById('prod_tanggal_ttd').value = person.tanggal_ttd || '';
+            }
+            let result = window.state.templateContent === 'STANDARD_PLACEHOLDER' || !window.state.templateContent ? getFallbackTemplate(person) : window.state.templateContent;
+            result = injectData(result, person);
+            window.state.processedHtml = result;
+            const preview = document.getElementById('merge-result-preview');
+            if(preview) preview.innerHTML = result;
+            const riName = document.getElementById('recipient-name');
+            if(riName) riName.textContent = person.nama || 'Tanpa Nama';
+            const curInfo = document.getElementById('current-info');
+            if(curInfo) curInfo.textContent = `${window.state.currentIndex + 1} dari ${window.state.database.length}`;
+        }
+
+        window.saveSigData = async () => {
+            const person = window.state.database[window.state.currentIndex];
+            if(!person) return;
+            const lokasi = document.getElementById('prod_lokasi_ttd').value;
+            const tgl = document.getElementById('prod_tanggal_ttd').value;
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'pegawai', person.id);
+                await updateDoc(docRef, { lokasi_ttd: lokasi, tanggal_ttd: tgl });
+                showToast("Data Tanda Tangan Disimpan");
+                renderRecipientView();
+            } catch (e) { showToast("Gagal simpan ke database"); }
+        };
+
+        window.prevRecipient = () => { if (window.state.currentIndex > 0) { window.state.currentIndex--; renderRecipientView(); } };
+        window.nextRecipient = () => { if (window.state.currentIndex < window.state.database.length - 1) { window.state.currentIndex++; renderRecipientView(); } };
+
+        window.printPrecision = () => {
+            const win = window.open('', '_blank');
+            win.document.write(`<html><head><style>@page { size: A4; margin: 0; } body { margin: 0; font-family: 'Times New Roman'; } .print-page { padding: 12mm 18mm; width: 210mm; min-height: 297mm; box-sizing: border-box; overflow: hidden; page-break-after: always; }</style></head><body>${window.state.processedHtml}</body></html>`);
+            win.document.close();
+            win.focus();
+            setTimeout(() => { win.print(); win.close(); }, 500);
+        };
+
+        window.exportPDF = async () => {
+            const element = document.getElementById('skumptk-capture-area');
+            if(!element) return;
+            const person = window.state.database[window.state.currentIndex];
+            const name = person.nama || 'SKUMPTK';
+            const filename = `SKUMPTK 2026 ${name} ${getFormattedTimestamp()}.pdf`;
+            await window.saveSigData();
+            const opt = { margin: 0, filename: filename, image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 1.5, useCORS: true, logging: false }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }, pagebreak: { mode: 'avoid-all' } };
+            showToast("Menyiapkan PDF & Sinkronisasi...");
+            try {
+                const worker = html2pdf().set(opt).from(element);
+                const pdfBase64 = await worker.outputPdf('datauristring');
+                worker.save();
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'pegawai', person.id);
+                await updateDoc(docRef, { pdfData: pdfBase64, lastExport: new Date().toISOString() });
+                showToast("PDF Tersinkron ke Cloud");
+            } catch (e) { showToast("Gagal simpan ke cloud."); }
+        };
+
+        window.kirimEmail = async () => {
+            const person = window.state.database[window.state.currentIndex];
+            if(!person.email) return showToast("Email tidak ditemukan!");
+            if(!person.pdfData) return showToast("Ekspor PDF dulu!");
+            showToast(`Mengirim ke: ${person.email}...`);
+            try {
+                const payload = { action: 'sendEmail', to: person.email, subject: `Arsip SKUMPTK 2026 - ${person.nama}`, body: `Yth. Bapak/Ibu ${person.nama},\n\nTerika kasih telah mengisi formulir isian Berikut ini hasil isian SKUMPTK Anda.\n\nSalam,\nSIMARS KP4 Digital`, attachment: person.pdfData, filename: `SKUMPTK_2026_${person.nama}.pdf` };
+                await fetch(window.state.gasUrl, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+                showToast("Email dikirim.");
+            } catch (e) { showToast("Gagal kirim email."); }
+        };
+
+        window.addEventListener('load', () => {
+            const fEntri = document.getElementById('form-entri'); if(fEntri) fEntri.addEventListener('submit', saveData);
+            const editForm = document.getElementById('form-edit-pegawai'); if(editForm) editForm.addEventListener('submit', updatePegawai);
+            ['prod_lokasi_ttd', 'prod_tanggal_ttd'].forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('change', () => el.dataset.manual = 'true'); });
+            window.updatePangkatDropdown('', 'pangkat-container', 'pangkat');
+        });
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .print-page { background: white; width: 210mm; min-height: 297mm; box-shadow: 0 0 40px rgba(0,0,0,0.1); margin: 0 auto; overflow: hidden; transform-origin: top center; }
+        .modal-overlay { background-color: rgba(15, 23, 42, 0.7); backdrop-filter: blur(8px); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 flex flex-col min-h-screen text-left">
+    <div id="toast" class="fixed bottom-8 right-8 bg-slate-900 text-white px-6 py-4 rounded-xl shadow-2xl hidden z-[100] text-sm font-bold border border-white/20"></div>
+    <header class="bg-white border-b sticky top-0 z-40 no-print">
+        <div class="max-w-7xl mx-auto px-6 flex items-center justify-between h-20">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 p-2.5 rounded-xl text-white shadow-xl"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg></div>
+                <div><h1 class="font-extrabold text-xl leading-none tracking-tighter text-slate-900">SI<span class="text-blue-600">MARS</span></h1><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Sistem Informasi Manajemen Administrasi Persuratan</p></div>
+            </div>
+            <nav class="flex gap-1 bg-slate-100 p-1.5 rounded-xl overflow-x-auto whitespace-nowrap scrollbar-hide max-w-[60%] md:max-w-none">
+                <button onclick="switchTab('dashboard')" data-tab="dashboard" class="tab-btn px-4 py-2 text-[10px] font-bold uppercase rounded-xl transition-all border-blue-600 text-blue-600 bg-blue-50">Dashboard</button>
+                <button onclick="switchTab('formulir')" data-tab="formulir" class="tab-btn px-4 py-2 text-[10px] font-bold uppercase rounded-xl text-slate-500">Formulir</button>
+                <button onclick="switchTab('database')" data-tab="database" class="tab-btn px-4 py-2 text-[10px] font-bold uppercase rounded-xl text-slate-500">Data</button>
+                <button onclick="switchTab('produksi')" data-tab="produksi" class="tab-btn px-4 py-2 text-[10px] font-bold uppercase rounded-xl text-slate-500">Produksi</button>
+            </nav>
+        </div>
+    </header>
+    <main class="max-w-7xl mx-auto p-4 md:p-6 flex-grow w-full">
+        <section id="dashboard" class="tab-content space-y-8 text-left">
+            <div class="bg-white p-6 md:p-10 rounded-[2.5rem] shadow-sm border border-slate-100 flex items-center justify-between hover:shadow-xl transition-all">
+                <div><p class="text-slate-400 font-bold text-[10px] uppercase tracking-widest leading-none">Arsip Pegawai Terdaftar</p><h3 id="stat-total" class="text-4xl md:text-6xl font-black text-slate-900 mt-2">0</h3></div>
+                <svg class="w-12 h-12 md:w-16 md:h-16 text-blue-50" fill="currentColor" viewBox="0 0 20 20"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97(6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a7 7 0 017 7v1H1v-1a5 5 0 018-4.33A6.97 6.97 0 007.5 16c0 .34.024.673.07 1H1z"></path></svg>
+            </div>
+            <div class="space-y-4">
+                <div class="flex items-center gap-2 px-2">
+                    <div class="w-1 h-4 bg-blue-600 rounded-full"></div>
+                    <h4 class="text-[10px] font-black uppercase text-slate-400 tracking-widest">Pengecekan Data Responden (Terbaru)</h4>
+                </div>
+                <div id="dashboard-grid-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-left">
+                    <div class="col-span-full p-10 text-center text-slate-300 font-bold text-[10px] uppercase tracking-widest text-left">Memuat data terbaru...</div>
+                </div>
+            </div>
+        </section>
+        <section id="database" class="tab-content hidden animate-in fade-in duration-500 space-y-6">
+            <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between text-left">
+                <div class="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+                    <div class="relative min-w-full md:min-w-[300px]">
+                        <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></span>
+                        <input type="text" oninput="handleSearch(this.value)" placeholder="Cari Nama atau NIP..." class="w-full pl-11 pr-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold outline-none focus:ring-4 focus:ring-blue-100 transition-all">
+                    </div>
+                    <select id="db-filter-unit" onchange="handleFilter(this.value)" class="py-3 px-6 bg-slate-50 border-none rounded-xl text-xs font-bold outline-none focus:ring-4 focus:ring-blue-100 cursor-pointer"></select>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="downloadTemplate()" title="Unduh Template" class="p-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-all flex items-center justify-center">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </button>
+                    <button onclick="exportDatabase('xlsx')" title="Ekspor Database" class="p-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-green-50 hover:text-green-600 transition-all flex items-center justify-center">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    </button>
+                    <button onclick="triggerImport()" title="Impor Database" class="p-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-amber-50 hover:text-amber-600 transition-all flex items-center justify-center">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    </button>
+                    <input type="file" id="import-file-input" class="hidden" accept=".xlsx, .xls" onchange="handleImport(event)">
+                </div>
+            </div>
+            <div id="db-grid-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 text-left"></div>
+        </section>
+        <section id="formulir" class="tab-content hidden max-w-5xl mx-auto animate-in slide-in-from-bottom-4 duration-500">
+            <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border border-slate-100 text-left">
+                <h2 class="text-lg md:text-xl font-bold mb-6 tracking-tight uppercase border-b pb-4 text-slate-900 flex justify-between items-center text-left">Input Data SKUMPTK / KP-4 <span class="text-[8px] md:text-[10px] font-black bg-blue-100 text-blue-600 px-3 py-1 rounded-full">Firestore Cloud</span></h2>
+                <form id="form-entri" class="space-y-8">
+                    <div class="space-y-6">
+                        <div class="flex items-center gap-2 text-blue-600 font-black uppercase text-[11px] tracking-wider"><span class="bg-blue-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-[10px]">I</span> Biodata Utama Pegawai</div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+                            <div class="lg:col-span-2 text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">1. Nama Lengkap</label><input type="text" name="nama" required class="w-full px-4 py-2 bg-slate-50 rounded-xlg outline-none mt-1 font-bold border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
+                            <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">2. NIP</label><input type="text" name="nip" required class="w-full px-4 py-2 bg-slate-50 rounded-xlg outline-none mt-1 font-mono border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
+                            <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">3. Tempat Lahir</label><input type="text" name="tempat_lahir" required class="w-full px-4 py-2 bg-slate-50 rounded-xlg outline-none mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
+                            <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">4. Tanggal Lahir</label><input type="text" name="tanggal_lahir" placeholder="12 April 1985" required class="w-full px-4 py-2 bg-slate-50 rounded-xlg outline-none mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
+                            <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">5. Jenis Kelamin</label><select name="jenis_kelamin" class="w-full px-4 py-2 bg-slate-50 rounded-xlg mt-1 font-bold outline-none border-none focus:ring-2 focus:ring-blue-200 shadow-inner"><option value="Laki-laki">Laki-laki</option><option value="Perempuan">Perempuan</option></select></div>
+                            <div>
+                                <label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">6. Agama</label>
+                                <select name="agama" class="w-full px-4 py-2 bg-slate-50 rounded-xlg outline-none mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner font-bold">
+                                    <option value="">--Pilih Agama--</option>
+                                    <option value="Islam">Islam</option><option value="Kristen Protestan">Kristen Protestan</option><option value="Kristen Katolik">Kristen Katolik</option><option value="Hindu">Hindu</option><option value="Buddha">Buddha</option><option value="Konghucu">Konghucu</option>
+                                </select>
+                            </div>
+                            <div class="lg:col-span-2"><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">7. Alamat Tempat Tinggal</label><input type="text" name="alamat" class="w-full px-4 py-2 bg-slate-50 rounded-xlg outline-none mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
+                            <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">8. NPWP</label><input type="text" name="npwp" class="w-full px-4 py-2 bg-slate-50 rounded-xlg outline-none mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
+                            <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">9. No. Telp / HP</label><input type="text" name="no_hp" class="w-full px-4 py-2 bg-slate-50 rounded-xlg outline-none mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
+                            <div>
+                                <label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">10. Status Kepegawaian</label>
+                                <select name="status_pegawai" onchange="updatePangkatDropdown(this.value, 'pangkat-container', 'pangkat')" class="w-full px-4 py-2 bg-slate-50 rounded-xlg mt-1 font-bold outline-none border-none focus:ring-2 focus:ring-blue-200 shadow-inner">
+                                    <option value="">--Pilih Status--</option>
+                                    <option value="PNS">PNS</option><option value="PPPK">PPPK</option><option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option><option value="Honorer">Honorer</option><option value="Lainnya">Lainnya</option>
+                                </select>
+                            </div>
+                            <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">11. Pangkat / Gol. Ruang</label><div id="pangkat-container"></div></div>
+                            <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">12. Unit Kerja</label><input type="text" name="unit" class="w-full px-4 py-2 bg-slate-50 rounded-xlg outline-none mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
+                            <div class="lg:col-span-2"><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">13. Alamat Unit Kerja</label><input type="text" name="alamat_unit" class="w-full px-4 py-2 bg-slate-50 rounded-xlg outline-none mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
+                            <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">14. No. Telp Unit Kerja</label><input type="text" name="telp_unit" class="w-full px-4 py-2 bg-slate-50 rounded-xlg outline-none mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
+                            <div class="lg:col-span-2"><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">15. Instansi</label><input type="text" name="instansi" value="Dinas Pendidikan, Kepemudaan, dan Olahraga" class="w-full px-4 py-2 bg-slate-50 rounded-xlg mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
+                            <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">Email Pegawai</label><input type="email" name="email" required placeholder="email@pegawai.com" class="w-full px-4 py-2 bg-slate-50 rounded-xlg outline-none mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner font-bold"></div>
+                        </div>
+                    </div>
+                    <div class="space-y-6">
+                        <div class="flex flex-col md:flex-row justify-between md:items-center border-b border-slate-100 pb-3 gap-3">
+                            <div class="flex items-center gap-2 text-blue-600 font-black uppercase text-[11px] tracking-wider"><span class="bg-blue-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-[10px]">II</span> Ringkasan Data Keluarga</div>
+                            <div class="flex gap-2 text-left">
+                                <button type="button" id="btn-pasangan-toggle" onclick="toggleModal('modal-pasangan')" class="bg-blue-600 text-white px-4 py-2.5 rounded-xlg text-[10px] font-black uppercase shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all flex-grow md:flex-none">+ Isi Data Pasangan</button>
+                                <button type="button" onclick="toggleModal('modal-anak')" class="bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xlg text-[10px] font-black uppercase hover:bg-indigo-50 hover:text-indigo-600 transition-all flex-grow md:flex-none">+ Kelola Anak</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50/30">
+                            <table class="w-full border-collapse"><thead class="bg-slate-100"><tr><th class="p-3 text-[10px] font-black uppercase text-slate-500 border text-left">Nama Lengkap</th><th class="p-3 text-[10px] font-black uppercase text-slate-500 border text-left">Tempat, Tanggal Lahir</th><th class="p-3 text-[10px] font-black uppercase text-slate-500 border text-left">Pekerjaan / Sekolah</th><th class="p-3 text-[10px] font-black uppercase text-slate-500 border text-center">Status</th></tr></thead><tbody id="row-pasangan" class="bg-white"><tr><td colspan="4" class="p-4 text-center text-slate-300 text-xs text-left">Belum ada data Pasangan</td></tr></tbody><tbody id="anak-summary-body" class="bg-white"></tbody></table>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900 p-6 md:p-8 rounded-xl text-white shadow-inner"><div class="flex items-center gap-2 text-blue-400 font-black uppercase text-[11px] border-b border-white/10 pb-3 mb-6 tracking-widest"><span class="bg-blue-400 text-slate-900 w-5 h-5 flex items-center justify-center rounded-full text-[10px]">III</span> Pejabat Penandatangan</div><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label class="text-[9px] font-black uppercase text-slate-500 tracking-widest">Nama Kepala Instansi</label><input type="text" name="kepala_instansi_nama" required class="w-full px-4 py-2 bg-white/5 rounded-xlg border border-white/10 outline-none mt-1 font-bold text-white focus:ring-2 focus:ring-blue-500/50 shadow-inner"></div><div><label class="text-[9px] font-black uppercase text-slate-500 tracking-widest">NIP Kepala Instansi</label><input type="text" name="kepala_instansi_nip" required class="w-full px-4 py-2 bg-white/5 rounded-xlg border border-white/10 outline-none mt-1 font-mono text-white focus:ring-2 focus:ring-blue-500/50 shadow-inner"></div></div></div>
+                    <div id="hidden-modal-inputs" class="hidden"><input type="hidden" name="si_nama" value=""><input type="hidden" name="si_tempat_lahir" value=""><input type="hidden" name="si_tanggal_lahir" value=""><input type="hidden" name="si_tanggal_nikah" value=""><input type="hidden" name="si_pekerjaan" value=""><input type="hidden" name="si_status" value=""><input type="hidden" id="form_jumlah_anak" name="jumlah_anak" value="0"></div>
+                    <button type="submit" class="w-full bg-blue-600 text-white font-black py-4 rounded-xl shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-[0.98] transition-all uppercase tracking-[0.3em] text-[10px] md:text-sm">Simpan Seluruh Data Ke Cloud</button>
+                </form>
+            </div>
+        </section>
+        <section id="produksi" class="tab-content hidden h-full text-left">
+            <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)]">
+                <aside class="lg:w-80 bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-0 overflow-y-auto custom-scrollbar no-print text-left">
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest block mb-2">1. Pilih Format Surat</label><select id="select-template-merge" onchange="runMailMerge()" class="w-full p-3 bg-slate-50 border-none rounded-xl text-[10px] font-black uppercase outline-none focus:ring-2 focus:ring-blue-100 cursor-pointer"></select></div>
+                    <div class="border-t border-slate-50 pt-4"><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest block mb-3">2. Navigasi Penerima</label><div class="flex items-center justify-between gap-2 bg-slate-50 p-2 rounded-xl"><button onclick="prevRecipient()" class="p-2 bg-white rounded-xlg shadow-sm hover:bg-blue-50 text-blue-600 transition-all"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button><div class="text-center"><div id="recipient-name" class="font-black text-[10px] uppercase text-slate-800 line-clamp-1">Pilih Penerima</div><div id="current-info" class="text-[8px] opacity-40 font-black">0 dari 0</div></div><button onclick="nextRecipient()" class="p-2 bg-white rounded-xlg shadow-sm hover:bg-blue-50 text-blue-600 transition-all"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button></div></div>
+                    <div class="border-t border-slate-50 pt-4 space-y-4 text-left"><div class="flex justify-between items-center"><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest block">3. Data Tanda Tangan</label><button onclick="saveSigData()" class="bg-blue-600 text-white px-3 py-1.5 rounded-xlg flex items-center gap-0 hover:bg-blue-700 transition-all shadow-md shadow-blue-100"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg><span class="text-[8px] font-black uppercase">Simpan</span></button></div><div><label class="text-[8px] font-bold text-slate-400 uppercase">Lokasi TTD</label><input type="text" id="prod_lokasi_ttd" oninput="renderRecipientView(); this.dataset.manual='true';" placeholder="Pandeglang" class="w-full px-3 py-2 bg-slate-50 border-none rounded-xlg text-[10px] font-bold mt-1 outline-none focus:ring-2 focus:ring-blue-100 shadow-inner"></div><div><label class="text-[8px] font-bold text-slate-400 uppercase">Tanggal TTD</label><input type="text" id="prod_tanggal_ttd" oninput="renderRecipientView(); this.dataset.manual='true';" placeholder="05 Januari 2026" class="w-full px-3 py-2 bg-slate-50 border-none rounded-xlg text-[10px] font-bold mt-1 outline-none focus:ring-2 focus:ring-blue-100 shadow-inner"></div></div>
+                    <div id="production-controls" class="border-t border-slate-50 pt-4 flex flex-col gap-3 transition-all text-left">
+                        <label class="text-[9px] font-black uppercase text-slate-400 tracking-widest block mb-1">4. Output Dokumen</label>
+                        <button onclick="printPrecision()" class="w-full bg-slate-900 text-white py-4 rounded-l font-black text-[10px] uppercase shadow-xl hover:bg-black hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg> Cetak Langsung</button>
+                        <button onclick="exportPDF()" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white py-4 rounded-l font-black text-[10px] uppercase shadow-xl hover:from-red-700 hover:to-red-800 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg> Ekspor PDF ke Cloud</button>
+                        <button onclick="kirimEmail()" class="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 rounded-l font-black text-[10px] uppercase shadow-xl hover:from-blue-700 hover:to-blue-800 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg> Kirim Email Pegawai</button>
+                    </div>
+                </aside>
+                <div class="flex-grow bg-slate-200 rounded-xl shadow-inner border border-slate-300/50 overflow-auto flex flex-col items-center py-8 text-left"><div id="merge-result-preview" class="transform scale-[0.6] md:scale-[0.8] lg:scale-[0.9] origin-top"></div></div>
+            </div>
+        </section>
+    </main>
+    <div id="modal-edit-pegawai" class="fixed inset-0 z-[150] hidden items-center justify-center p-4 text-left">
+        <div class="absolute inset-0 modal-overlay" onclick="toggleModal('modal-edit-pegawai')"></div>
+        <div class="bg-white w-full max-w-6xl rounded-xl shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[95vh] animate-in zoom-in duration-300 text-left">
+            <div class="bg-slate-900 px-6 py-4 md:px-8 md:py-5 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-4 text-left"><div class="bg-blue-600 p-2 rounded-xlg text-white"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></div><div><h2 class="text-white font-black text-sm md:text-lg tracking-tight uppercase leading-none">Manajemen Profil</h2><p class="text-blue-400 text-[8px] font-bold uppercase tracking-[0.2em] mt-1">Data Lengkap Cloud Pegawai</p></div></div>
+                <button onclick="toggleModal('modal-edit-pegawai')" class="p-2 text-slate-400 hover:text-white transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+            </div>
+            <form id="form-edit-pegawai" class="flex-grow overflow-y-auto p-6 md:p-10 custom-scrollbar bg-slate-50/50">
+                <input type="hidden" name="id"><div class="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-6 text-left">
+                    <div class="col-span-full border-b border-slate-200 pb-2 flex items-center gap-2"><span class="w-2 h-2 bg-blue-600 rounded-full"></span><span class="text-[10px] font-black uppercase text-slate-400 tracking-widest text-left">1. Karir & Identitas Utama</span></div>
+                    <div class="md:col-span-2 text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Nama Lengkap</label><input type="text" name="nama" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-black text-slate-800 focus:ring-4 focus:ring-blue-100 text-left"></div>
+                    <div class="text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">NIP</label><input type="text" name="nip" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-mono text-slate-600 focus:ring-4 focus:ring-blue-100 text-left"></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Status Pegawai</label><select name="status_pegawai" onchange="updatePangkatDropdown(this.value, 'edit-pangkat-container', 'pangkat')" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-bold focus:ring-4 focus:ring-blue-100 text-left"><option value="">--Pilih Status--</option><option value="PNS">PNS</option><option value="PPPK">PPPK</option><option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option><option value="Honorer">Honorer</option><option value="Lainnya">Lainnya</option></select></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Pangkat/Gol</label><div id="edit-pangkat-container"></div></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">NPWP</label><input type="text" name="npwp" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-mono text-left"></div>
+                    <div class="col-span-full border-b border-slate-200 pb-2 mt-6 flex items-center gap-2 text-left"><span class="w-2 h-2 bg-blue-600 rounded-full"></span><span class="text-[10px] font-black uppercase text-slate-400 tracking-widest">2. Penempatan Unit Kerja</span></div>
+                    <div class="md:col-span-2 text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Unit Kerja</label><input type="text" name="unit" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-black text-blue-600 text-left"></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Telp Unit</label><input type="text" name="telp_unit" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
+                    <div class="md:col-span-2 text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Alamat Unit</label><input type="text" name="alamat_unit" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Instansi</label><input type="text" name="instansi" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
+                    <div class="col-span-full border-b border-slate-200 pb-2 mt-6 flex items-center gap-2 text-left"><span class="w-2 h-2 bg-blue-600 rounded-full"></span><span class="text-[10px] font-black uppercase text-slate-400 tracking-widest">3. Biodata Personal</span></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Tempat Lahir</label><input type="text" name="tempat_lahir" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Tanggal Lahir</label><input type="text" name="tanggal_lahir" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Agama</label><select name="agama" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-bold focus:ring-4 focus:ring-blue-100 text-left"><option value="">--Pilih Agama--</option><option value="Islam">Islam</option><option value="Kristen Protestan">Kristen Protestan</option><option value="Kristen Katolik">Kristen Katolik</option><option value="Hindu">Hindu</option><option value="Buddha">Buddha</option><option value="Konghucu">Konghucu</option></select></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter text-left">Jenis Kelamin</label><select name="jenis_kelamin" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-bold text-left"><option value="Laki-laki">Laki-laki</option><option value="Perempuan">Perempuan</option></select></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">No. WhatsApp</label><input type="text" name="no_hp" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Email</label><input type="email" name="email" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-bold text-slate-500 text-left"></div>
+                    <div class="md:col-span-3 text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Alamat Tempat Tinggal</label><input type="text" name="alamat" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
+                    <div class="col-span-full border-b border-slate-200 pb-2 mt-6 flex items-center gap-2 text-left"><span class="w-2 h-2 bg-blue-600 rounded-full"></span><span class="text-[10px] font-black uppercase text-slate-400 tracking-widest text-left">4. Pejabat Penandatangan</span></div>
+                    <div class="md:col-span-2 text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Nama Kepala Instansi</label><input type="text" name="kepala_instansi_nama" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-black text-left"></div>
+                    <div class="text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">NIP Kepala Instansi</label><input type="text" name="kepala_instansi_nip" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-mono text-left"></div>
+                    <div class="col-span-full border-b border-slate-200 pb-2 mt-6 flex items-center justify-between text-left"><div class="flex items-center gap-2 text-left"><span class="w-2 h-2 bg-blue-600 rounded-full"></span><span class="text-[10px] font-black uppercase text-slate-400 tracking-widest text-left">5. Ringkasan Keluarga</span></div><button type="button" onclick="addEditChildRow()" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-[8px] font-black uppercase shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all text-left">+ Tambah Anak</button></div>
+                    <div class="col-span-full text-left">
+                        <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-inner text-left"><table class="w-full border-collapse"><thead class="bg-slate-100"><tr><th class="p-3 text-[9px] font-black uppercase text-slate-400 border text-left">Nama Lengkap</th><th class="p-3 text-[9px] font-black uppercase text-slate-400 border text-left">Tempat, Tanggal Lahir</th><th class="p-3 text-[9px] font-black uppercase text-slate-400 border text-left">Pekerjaan</th><th class="p-3 text-[9px] font-black uppercase text-slate-400 border text-center">Status</th><th class="p-3 text-[9px] font-black uppercase text-slate-400 border text-center">Aksi</th></tr></thead><tbody id="edit-family-summary-body"></tbody></table></div>
+                        <input type="hidden" name="jumlah_anak" id="edit_jumlah_anak">
+                    </div>
+                </div>
+                <div class="mt-8 md:mt-12 pt-8 border-t border-slate-200 flex flex-col md:flex-row gap-4 shrink-0 text-left"><button type="submit" class="flex-grow bg-slate-900 text-white font-black py-4 md:py-5 rounded-xl shadow-2xl hover:bg-black active:scale-[0.98] transition-all uppercase tracking-widest text-xs md:text-sm text-center">Update Database Pegawai</button><button type="button" onclick="toggleModal('modal-edit-pegawai')" class="px-12 bg-slate-200 text-slate-600 font-bold py-4 rounded-xl hover:bg-slate-300 transition-all uppercase text-xs text-center">Batal</button></div>
+            </form>
+        </div>
+    </div>
+    <div id="modal-pasangan" class="fixed inset-0 z-[160] hidden items-center justify-center p-4 text-left">
+        <div class="absolute inset-0 modal-overlay" onclick="toggleModal('modal-pasangan')"></div>
+        <div class="bg-white w-full max-w-xl rounded-[2rem] md:rounded-[2.5rem] shadow-2xl relative z-10 p-6 md:p-10 animate-in zoom-in duration-300 text-left">
+            <h3 class="font-black text-lg md:text-xl mb-6 uppercase text-blue-600">Data Pasangan</h3>
+            <div class="space-y-4 text-left">
+                <div><label class="text-[9px] font-black uppercase text-slate-400">Nama Istri / Suami</label><input type="text" id="modal_si_nama" class="w-full px-4 py-3 bg-slate-50 rounded-xl outline-none mt-1 border-none focus:ring-2 focus:ring-blue-100 text-left"></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                    <div><label class="text-[9px] font-black uppercase text-slate-400">Tempat Lahir</label><input type="text" id="modal_si_tempat" class="w-full px-4 py-3 bg-slate-50 rounded-xl mt-1 border-none focus:ring-2 focus:ring-blue-100 text-left"></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400">Tanggal Lahir</label><input type="text" id="modal_si_tgl" placeholder="10 Mei 1988" class="w-full px-4 py-3 bg-slate-50 rounded-xl mt-1 border-none focus:ring-2 focus:ring-blue-100 text-left"></div>
+                </div>
+                <div><label class="text-[9px] font-black uppercase text-slate-400">Tanggal Nikah</label><input type="text" id="modal_si_nikah" placeholder="20 Januari 2010" class="w-full px-4 py-3 bg-slate-50 rounded-xl mt-1 border-none focus:ring-2 focus:ring-blue-100 text-left"></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                    <div><label class="text-[9px] font-black uppercase text-slate-400">Pekerjaan</label><input type="text" id="modal_si_pekerjaan" class="w-full px-4 py-3 bg-slate-50 rounded-xl mt-1 border-none focus:ring-2 focus:ring-blue-100 text-left"></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400">Status Pasangan</label><select id="modal_si_status" class="w-full px-4 py-3 bg-slate-50 rounded-xl mt-1 border-none focus:ring-2 focus:ring-blue-100 font-bold text-left"><option value="Istri">Istri</option><option value="Suami">Suami</option></select></div>
+                </div>
+            </div>
+            <div class="mt-8 flex flex-col md:flex-row gap-3 text-left"><button onclick="simpanModalPasangan()" class="flex-grow bg-blue-600 text-white font-black py-4 rounded-xl uppercase text-[10px]">Simpan Data Pasangan</button><button onclick="toggleModal('modal-pasangan')" class="px-6 py-4 bg-slate-100 text-slate-500 font-bold rounded-xl text-[10px] text-center">Batal</button></div>
+        </div>
+    </div>
+    <div id="modal-anak" class="fixed inset-0 z-[160] hidden items-center justify-center p-4 text-left">
+        <div class="absolute inset-0 modal-overlay" onclick="toggleModal('modal-anak')"></div>
+        <div class="bg-slate-100 w-full max-w-2xl rounded-[1rem] md:rounded-[1rem] shadow-2xl relative z-10 flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-10 duration-300 text-left">
+            <div class="p-6 md:p-10 pb-4 flex justify-between items-center bg-white rounded-t-[1rem] md:rounded-t-[1rem] text-left">
+                <div><h3 class="font-black text-lg md:text-xl uppercase text-indigo-600 leading-none">Daftar Anak</h3><p class="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase mt-2 tracking-widest">Input Multi-Data Anak Kandung/Angkat</p></div>
+                <button onclick="tambahAnak()" class="bg-indigo-600 text-white px-4 py-2 md:px-6 md:py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase shadow-lg shadow-indigo-100 text-left">+ Tambah</button>
+            </div>
+            <div id="anak-inputs-container" class="flex-grow overflow-y-auto p-6 md:p-10 custom-scrollbar text-left"></div>
+            <div class="p-6 md:p-10 pt-4 bg-white rounded-b-[2rem] md:rounded-b-[3rem] flex flex-col md:flex-row gap-3 text-left"><button onclick="simpanModalAnak()" class="flex-grow bg-slate-900 text-white font-black py-4 rounded-xl uppercase text-[10px] shadow-xl">Konfirmasi Data Anak</button><button onclick="toggleModal('modal-anak')" class="px-8 py-4 bg-slate-200 text-slate-500 font-bold rounded-xl text-[10px] text-center">Tutup</button></div>
+        </div>
+    </div>
+    <footer class="mt-20 py-16 border-t border-slate-200 bg-white no-print text-center text-slate-300 font-black uppercase text-[8px] md:text-[9px] tracking-[0.3em] md:tracking-[0.5em] text-left px-6">SIMARS &copy; 2025 | Developed by Edibrata</footer>
+</body>
+</html>
