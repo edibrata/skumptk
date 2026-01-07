@@ -203,7 +203,7 @@
             const btnPasangan = document.getElementById('btn-pasangan-toggle');
             if(btnPasangan) btnPasangan.textContent = "Edit Pasangan";
 
-            const ttl = (tempat || '') + (tgl ? ', ' + formatTanggalIndo(tgl) : '');
+            const ttl = (tempat ? tempat.trim() : '') + (tgl ? ', ' + formatTanggalIndo(tgl) : '');
             const row = document.getElementById('row-pasangan');
             if(row) {
                 row.innerHTML = `
@@ -231,7 +231,7 @@
                 const tgl = document.querySelector(`input[name="modal_anak_${i}_tanggal_lahir"]`).value;
                 const pekerjaan = document.querySelector(`input[name="modal_anak_${i}_pekerjaan"]`).value;
                 
-                const combinedTTL = (tempat || '') + (tgl ? ', ' + formatTanggalIndo(tgl) : '');
+                const combinedTTL = (tempat ? tempat.trim() : '') + (tgl ? ', ' + formatTanggalIndo(tgl) : '');
 
                 container.innerHTML += `
                     <tr class="bg-white">
@@ -736,7 +736,7 @@
                 rows += `
                     <tr>
                         <td style=\"border: 1px solid black; padding: 4px; height: 18px; text-align: left;\">${data.si_nama || '-'}</td>
-                        <td style=\"border: 1px solid black; padding: 4px; text-align: left;\">${(data.si_tempat_lahir || '') + (data.si_tanggal_lahir ? ', ' + formatTanggalIndo(data.si_tanggal_lahir) : '') || '-'}</td>
+                        <td style=\"border: 1px solid black; padding: 4px; text-align: left;\">${(data.si_tempat_lahir ? data.si_tempat_lahir.trim() : '') + (data.si_tanggal_lahir ? ', ' + formatTanggalIndo(data.si_tanggal_lahir) : '') || '-'}</td>
                         <td style=\"border: 1px solid black; padding: 4px; text-align: center;\">${formatTanggalIndo(data.si_tanggal_nikah) || ''}</td>
                         <td style=\"border: 1px solid black; padding: 4px; text-align: left;\">${data.si_pekerjaan || '-'}</td>
                         <td style=\"border: 1px solid black; padding: 4px; text-align: center;\">${data.si_status || 'Istri / Suami'}</td>
@@ -752,7 +752,7 @@
                     rows += `
                         <tr>
                             <td style=\"border: 1px solid black; padding: 4px; height: 18px; text-align: left;\">${data[`anak_${i}_nama`] || '-'}</td>
-                            <td style=\"border: 1px solid black; padding: 4px; text-align: left;\">${(data[`anak_${i}_tempat_lahir`] || '') + (data[`anak_${i}_tanggal_lahir`] ? ', ' + formatTanggalIndo(data[`anak_${i}_tanggal_lahir`]) : '') || '-'}</td>
+                            <td style=\"border: 1px solid black; padding: 4px; text-align: left;\">${(data[`anak_${i}_tempat_lahir`] ? data[`anak_${i}_tempat_lahir`].trim() : '') + (data[`anak_${i}_tanggal_lahir`] ? ', ' + formatTanggalIndo(data[`anak_${i}_tanggal_lahir`]) : '') || '-'}</td>
                             <td style=\"border: 1px solid black; padding: 4px; text-align: center;\">-</td>
                             <td style=\"border: 1px solid black; padding: 4px; text-align: left;\">${data[`anak_${i}_pekerjaan`] || '-'}</td>
                             <td style=\"border: 1px solid black; padding: 4px; text-align: center;\">Anak</td>
@@ -1133,6 +1133,7 @@
                         <div class="flex items-center gap-2 text-blue-400 font-black uppercase text-[11px] border-b border-white/10 pb-3 mb-4 tracking-widest">
                             <span class="bg-blue-400 text-slate-900 w-5 h-5 flex items-center justify-center rounded-full text-[10px]">IV</span> Pejabat Penandatangan
                         </div>
+                        <!-- Petunjuk Profesional dengan Ikon -->
                         <div class="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg flex gap-3 items-start">
                             <div class="mt-0.5 text-blue-400 shrink-0">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1220,6 +1221,7 @@
                     <div class="md:col-span-3 text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Alamat Tempat Tinggal</label><input type="text" name="alamat" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
                     
                     <div class="col-span-full border-b border-slate-200 pb-2 mt-6 flex items-center gap-2 text-left"><span class="w-2 h-2 bg-blue-600 rounded-full"></span><span class="text-[10px] font-black uppercase text-slate-400 tracking-widest text-left">4. Tanda Tangan & Pejabat</span></div>
+                    <!-- Petunjuk Profesional dengan Ikon (Edit) -->
                     <div class="col-span-full p-4 bg-blue-50 border border-blue-100 rounded-lg flex gap-3 items-start text-left">
                         <div class="mt-0.5 text-blue-600 shrink-0">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1284,4 +1286,4 @@
     </div>
     <footer class="mt-20 py-16 border-t border-slate-200 bg-white no-print text-center text-slate-300 font-black uppercase text-[8px] md:text-[9px] tracking-[0.3em] md:tracking-[0.5em] text-left px-6">SKUMPTK &copy; 2025 | Developed by Edibrata</footer>
 </body>
-</html>
+</html> eof
