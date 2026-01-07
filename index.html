@@ -287,8 +287,8 @@
                 const opt = { 
                     margin: 0, 
                     filename: filename, 
-                    image: { type: 'jpeg', quality: 0.95 }, 
-                    html2canvas: { scale: 1.5, useCORS: true, logging: false }, 
+                    image: { type: 'jpeg', quality: 1.0 }, 
+                    html2canvas: { scale: 2, useCORS: true, logging: false }, 
                     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true } 
                 };
                 
@@ -866,15 +866,21 @@
         };
 
         window.exportPDF = async () => {
-            const element = document.getElementById('skumptk-capture-area');
-            if(!element) return;
+            if(!window.state.processedHtml) return;
             const person = window.state.database[window.state.currentIndex];
             const name = person.nama || 'SKUMPTK';
             const filename = `SKUMPTK 2026 ${name} ${getFormattedTimestamp()}.pdf`;
-            const opt = { margin: 0, filename: filename, image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 1.5, useCORS: true, logging: false }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }, pagebreak: { mode: 'avoid-all' } };
+            const opt = { 
+                margin: 0, 
+                filename: filename, 
+                image: { type: 'jpeg', quality: 1.0 }, 
+                html2canvas: { scale: 2, useCORS: true, logging: false }, 
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }, 
+                pagebreak: { mode: 'avoid-all' } 
+            };
             showToast("Menyiapkan PDF & Sinkronisasi...");
             try {
-                const worker = html2pdf().set(opt).from(element);
+                const worker = html2pdf().set(opt).from(window.state.processedHtml);
                 const pdfBase64 = await worker.outputPdf('datauristring');
                 worker.save();
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'pegawai', person.id);
