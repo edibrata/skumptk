@@ -726,26 +726,43 @@
         }
 
         const getFallbackTemplate = (data) => {
-            let rows = `
-                <tr>
-                    <td style=\"border: 1px solid black; padding: 4px; height: 18px; text-align: left;\">${data.si_nama || '-'}</td>
-                    <td style=\"border: 1px solid black; padding: 4px; text-align: left;\">${(data.si_tempat_lahir || '') + (data.si_tanggal_lahir ? ', ' + formatTanggalIndo(data.si_tanggal_lahir) : '') || '-'}</td>
-                    <td style=\"border: 1px solid black; padding: 4px; text-align: center;\">${formatTanggalIndo(data.si_tanggal_nikah) || ''}</td>
-                    <td style=\"border: 1px solid black; padding: 4px; text-align: left;\">${data.si_pekerjaan || '-'}</td>
-                    <td style=\"border: 1px solid black; padding: 4px; text-align: center;\">${data.si_status || 'Istri / Suami'}</td>
-                </tr>
-            `;
-            const jmlAnak = parseInt(data.jumlah_anak || 0);
-            for (let i = 1; i <= jmlAnak; i++) {
+            let rows = "";
+            let hasContent = false;
+
+            // Baris Pasangan - Hanya muncul jika si_nama diisi
+            if (data.si_nama && data.si_nama.trim() !== "") {
                 rows += `
                     <tr>
-                        <td style=\"border: 1px solid black; padding: 4px; height: 18px; text-align: left;\">${data[`anak_${i}_nama`] || '-'}</td>
-                        <td style=\"border: 1px solid black; padding: 4px; text-align: left;\">${(data[`anak_${i}_tempat_lahir`] || '') + (data[`anak_${i}_tanggal_lahir`] ? ', ' + formatTanggalIndo(data[`anak_${i}_tanggal_lahir`]) : '') || '-'}</td>
-                        <td style=\"border: 1px solid black; padding: 4px; text-align: center;\">-</td>
-                        <td style=\"border: 1px solid black; padding: 4px; text-align: left;\">${data[`anak_${i}_pekerjaan`] || '-'}</td>
-                        <td style=\"border: 1px solid black; padding: 4px; text-align: center;\">Anak</td>
+                        <td style=\"border: 1px solid black; padding: 4px; height: 18px; text-align: left;\">${data.si_nama || '-'}</td>
+                        <td style=\"border: 1px solid black; padding: 4px; text-align: left;\">${(data.si_tempat_lahir || '') + (data.si_tanggal_lahir ? ', ' + formatTanggalIndo(data.si_tanggal_lahir) : '') || '-'}</td>
+                        <td style=\"border: 1px solid black; padding: 4px; text-align: center;\">${formatTanggalIndo(data.si_tanggal_nikah) || ''}</td>
+                        <td style=\"border: 1px solid black; padding: 4px; text-align: left;\">${data.si_pekerjaan || '-'}</td>
+                        <td style=\"border: 1px solid black; padding: 4px; text-align: center;\">${data.si_status || 'Istri / Suami'}</td>
                     </tr>
                 `;
+                hasContent = true;
+            }
+
+            // Baris Anak
+            const jmlAnak = parseInt(data.jumlah_anak || 0);
+            for (let i = 1; i <= jmlAnak; i++) {
+                if (data[`anak_${i}_nama`] && data[`anak_${i}_nama`].trim() !== "") {
+                    rows += `
+                        <tr>
+                            <td style=\"border: 1px solid black; padding: 4px; height: 18px; text-align: left;\">${data[`anak_${i}_nama`] || '-'}</td>
+                            <td style=\"border: 1px solid black; padding: 4px; text-align: left;\">${(data[`anak_${i}_tempat_lahir`] || '') + (data[`anak_${i}_tanggal_lahir`] ? ', ' + formatTanggalIndo(data[`anak_${i}_tanggal_lahir`]) : '') || '-'}</td>
+                            <td style=\"border: 1px solid black; padding: 4px; text-align: center;\">-</td>
+                            <td style=\"border: 1px solid black; padding: 4px; text-align: left;\">${data[`anak_${i}_pekerjaan`] || '-'}</td>
+                            <td style=\"border: 1px solid black; padding: 4px; text-align: center;\">Anak</td>
+                        </tr>
+                    `;
+                    hasContent = true;
+                }
+            }
+
+            // Jika tidak ada data sama sekali (belum menikah/janda/duda tanpa anak yang diisi)
+            if (!hasContent) {
+                rows = `<tr><td colspan=\"5\" style=\"border: 1px solid black; padding: 10px; text-align: center; font-weight: bold;\">TIDAK ADA</td></tr>`;
             }
             
             const lokasi = data.lokasi_ttd || 'Pandeglang';
@@ -1026,7 +1043,7 @@
                             <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">12. Unit Kerja</label><input type="text" name="unit" class="w-full px-4 py-2 bg-slate-50 rounded-lg outline-none mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
                             <div class="lg:col-span-2"><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">13. Alamat Unit Kerja</label><input type="text" name="alamat_unit" class="w-full px-4 py-2 bg-slate-50 rounded-lg outline-none mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
                             <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">14. No. Telp Unit Kerja</label><input type="text" name="telp_unit" class="w-full px-4 py-2 bg-slate-50 rounded-lg outline-none mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
-                            <div class="lg:col-span-2"><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">15. Instansi</label><input type="text" name="instansi" value="Bidang Pembinaan Sekolah Dasar Disdikpora Kab. Pandeglang" class="w-full px-4 py-2 bg-slate-50 rounded-lg mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
+                            <div class="lg:col-span-2"><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">15. Instansi</label><input type="text" name="instansi" value="Dinas Pendidikan, Kepemudaan, dan Olahraga" class="w-full px-4 py-2 bg-slate-50 rounded-lg mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
                             <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">Email Pegawai</label><input type="email" name="email" required placeholder="email@pegawai.com" class="w-full px-4 py-2 bg-slate-50 rounded-lg outline-none mt-1 border-none focus:ring-2 focus:ring-blue-200 shadow-inner font-bold"></div>
                         </div>
                     </div>
@@ -1049,7 +1066,20 @@
                             <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-widest">Tanggal Tanda Tangan</label><input type="date" name="tanggal_ttd" value="2026-01-05" required class="w-full px-4 py-2 bg-slate-50 rounded-lg outline-none mt-1 font-bold border-none focus:ring-2 focus:ring-blue-200 shadow-inner"></div>
                         </div>
                     </div>
-                    <div class="bg-slate-900 p-6 md:p-8 rounded-lg text-white shadow-inner"><div class="flex items-center gap-2 text-blue-400 font-black uppercase text-[11px] border-b border-white/10 pb-3 mb-6 tracking-widest"><span class="bg-blue-400 text-slate-900 w-5 h-5 flex items-center justify-center rounded-full text-[10px]">IV</span> Pejabat Penandatangan</div><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label class="text-[9px] font-black uppercase text-slate-500 tracking-widest">Nama Kepala Instansi</label><input type="text" name="kepala_instansi_nama" value="Wawan Munawar, S.T., M.M." required class="w-full px-4 py-2 bg-white/5 rounded-lg border border-white/10 outline-none mt-1 font-bold text-white focus:ring-2 focus:ring-blue-500/50 shadow-inner"></div><div><label class="text-[9px] font-black uppercase text-slate-500 tracking-widest">NIP Kepala Instansi</label><input type="text" name="kepala_instansi_nip" value="198011072010011012" required class="w-full px-4 py-2 bg-white/5 rounded-lg border border-white/10 outline-none mt-1 font-mono text-white focus:ring-2 focus:ring-blue-500/50 shadow-inner"></div></div></div>
+                    <div class="bg-slate-900 p-6 md:p-8 rounded-lg text-white shadow-inner">
+                        <div class="flex items-center gap-2 text-blue-400 font-black uppercase text-[11px] border-b border-white/10 pb-3 mb-4 tracking-widest">
+                            <span class="bg-blue-400 text-slate-900 w-5 h-5 flex items-center justify-center rounded-full text-[10px]">IV</span> Pejabat Penandatangan
+                        </div>
+                        <div class="mb-6 p-4 bg-white/5 border border-white/10 rounded-lg">
+                            <p class="text-[10px] text-blue-200 leading-relaxed font-bold italic">
+                                *Petunjuk: Jika Anda berstatus GURU, Pejabat Penandatangan adalah KEPALA SEKOLAH. Jika Anda berstatus KEPALA SEKOLAH, Pejabat Penandatangan adalah KEPALA BIDANG PEMBINAAN SD DISDIKPORA KAB. PANDEGLANG.
+                            </p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div><label class="text-[9px] font-black uppercase text-slate-500 tracking-widest">Nama Pejabat (Kepala)</label><input type="text" name="kepala_instansi_nama" value="" required class="w-full px-4 py-2 bg-white/5 rounded-lg border border-white/10 outline-none mt-1 font-bold text-white focus:ring-2 focus:ring-blue-500/50 shadow-inner"></div>
+                            <div><label class="text-[9px] font-black uppercase text-slate-500 tracking-widest">NIP Pejabat (Kepala)</label><input type="text" name="kepala_instansi_nip" value="" required class="w-full px-4 py-2 bg-white/5 rounded-lg border border-white/10 outline-none mt-1 font-mono text-white focus:ring-2 focus:ring-blue-500/50 shadow-inner"></div>
+                        </div>
+                    </div>
                     <div id="hidden-modal-inputs" class="hidden"><input type="hidden" name="si_nama" value=""><input type="hidden" name="si_tempat_lahir" value=""><input type="hidden" name="si_tanggal_lahir" value=""><input type="hidden" name="si_tanggal_nikah" value=""><input type="hidden" name="si_pekerjaan" value=""><input type="hidden" name="si_status" value=""><input type="hidden" id="form_jumlah_anak" name="jumlah_anak" value="0"></div>
                     <button type="submit" class="w-full bg-blue-600 text-white font-black py-4 rounded-lg shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-[0.98] transition-all uppercase tracking-[0.3em] text-[10px] md:text-sm">Simpan Seluruh Data Ke Cloud</button>
                 </form>
@@ -1084,7 +1114,8 @@
                 <button onclick="toggleModal('modal-edit-pegawai')" class="p-2 text-slate-400 hover:text-white transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
             </div>
             <form id="form-edit-pegawai" class="flex-grow overflow-y-auto p-6 md:p-10 custom-scrollbar bg-slate-50/50">
-                <input type="hidden" name="id"><div class="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-6 text-left">
+                <input type="hidden" name="id">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-6 text-left">
                     <div class="col-span-full border-b border-slate-200 pb-2 flex items-center gap-2"><span class="w-2 h-2 bg-blue-600 rounded-full"></span><span class="text-[10px] font-black uppercase text-slate-400 tracking-widest text-left">1. Karir & Identitas Utama</span></div>
                     <div class="md:col-span-2 text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Nama Lengkap</label><input type="text" name="nama" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-black text-slate-800 focus:ring-4 focus:ring-blue-100 text-left"></div>
                     <div class="text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">NIP</label><input type="text" name="nip" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-mono text-slate-600 focus:ring-4 focus:ring-blue-100 text-left"></div>
@@ -1095,7 +1126,7 @@
                     <div class="md:col-span-2 text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Unit Kerja</label><input type="text" name="unit" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-black text-blue-600 text-left"></div>
                     <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Telp Unit</label><input type="text" name="telp_unit" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
                     <div class="md:col-span-2 text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Alamat Unit</label><input type="text" name="alamat_unit" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
-                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Instansi</label><input type="text" name="instansi" value="Bidang Pembinaan Sekolah Dasar Disdikpora Kab. Pandeglang" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Instansi</label><input type="text" name="instansi" value="Dinas Pendidikan, Kepemudaan, dan Olahraga" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
                     <div class="col-span-full border-b border-slate-200 pb-2 mt-6 flex items-center gap-2 text-left"><span class="w-2 h-2 bg-blue-600 rounded-full"></span><span class="text-[10px] font-black uppercase text-slate-400 tracking-widest">3. Biodata Personal</span></div>
                     <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Tempat Lahir</label><input type="text" name="tempat_lahir" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
                     <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Tanggal Lahir</label><input type="date" name="tanggal_lahir" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
@@ -1104,11 +1135,18 @@
                     <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">No. WhatsApp</label><input type="text" name="no_hp" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
                     <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Email</label><input type="email" name="email" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-bold text-slate-500 text-left"></div>
                     <div class="md:col-span-3 text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Alamat Tempat Tinggal</label><input type="text" name="alamat" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 text-left"></div>
+                    
                     <div class="col-span-full border-b border-slate-200 pb-2 mt-6 flex items-center gap-2 text-left"><span class="w-2 h-2 bg-blue-600 rounded-full"></span><span class="text-[10px] font-black uppercase text-slate-400 tracking-widest text-left">4. Tanda Tangan & Pejabat</span></div>
+                    <div class="col-span-full p-4 bg-blue-50 border-l-4 border-blue-600 rounded-r-lg">
+                        <p class="text-[10px] text-blue-700 leading-relaxed font-bold italic">
+                            *Petunjuk: Jika Guru, Kepala Instansi adalah Kepala Sekolah. Jika Kepala Sekolah, Kepala Instansi adalah Kepala Bidang Pembinaan SD Disdikpora Kab. Pandeglang.
+                        </p>
+                    </div>
                     <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Lokasi TTD</label><input type="text" name="lokasi_ttd" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-black text-left"></div>
                     <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Tanggal TTD</label><input type="date" name="tanggal_ttd" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-black text-left"></div>
-                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Nama Kepala Instansi</label><input type="text" name="kepala_instansi_nama" value="Wawan Munawar, S.T., M.M." class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-black text-left"></div>
-                    <div class="text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">NIP Kepala Instansi</label><input type="text" name="kepala_instansi_nip" value="198011072010011012" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-mono text-left"></div>
+                    <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Nama Pejabat (Kepala)</label><input type="text" name="kepala_instansi_nama" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-black text-left"></div>
+                    <div class="text-left"><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">NIP Pejabat (Kepala)</label><input type="text" name="kepala_instansi_nip" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-mono text-left"></div>
+                    
                     <div class="col-span-full border-b border-slate-200 pb-2 mt-6 flex items-center justify-between text-left"><div class="flex items-center gap-2 text-left"><span class="w-2 h-2 bg-blue-600 rounded-full"></span><span class="text-[10px] font-black uppercase text-slate-400 tracking-widest text-left">5. Ringkasan Keluarga</span></div><button type="button" onclick="addEditChildRow()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-[8px] font-black uppercase shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all text-left">+ Tambah Anak</button></div>
                     <div class="col-span-full text-left">
                         <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-inner text-left"><table class="w-full border-collapse"><thead class="bg-slate-100"><tr><th class="p-3 text-[9px] font-black uppercase text-slate-400 border text-left">Nama Lengkap</th><th class="p-3 text-[9px] font-black uppercase text-slate-400 border text-left">Tempat, Tanggal Lahir</th><th class="p-3 text-[9px] font-black uppercase text-slate-400 border text-left">Pekerjaan</th><th class="p-3 text-[9px] font-black uppercase text-slate-400 border text-center">Status</th><th class="p-3 text-[9px] font-black uppercase text-slate-400 border text-center">Aksi</th></tr></thead><tbody id="edit-family-summary-body"></tbody></table></div>
