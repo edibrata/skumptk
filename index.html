@@ -403,8 +403,8 @@
             const childRows = document.getElementById('edit-family-summary-body').querySelectorAll('tr[data-child-row], tr:has(button[onclick*=\"remove\"])');
             data.jumlah_anak = childRows.length;
             try {
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'pegawai', docId);
-                await updateDoc(docRef, data);
+                const windowDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'pegawai', docId);
+                await updateDoc(windowDocRef, data);
                 showToast("Data Pegawai Berhasil Diperbarui");
                 window.toggleModal('modal-edit-pegawai');
             } catch (err) { showToast("Gagal memperbarui data."); }
@@ -877,8 +877,8 @@
                 const worker = html2pdf().set(opt).from(element);
                 const pdfBase64 = await worker.outputPdf('datauristring');
                 worker.save();
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'pegawai', person.id);
-                await updateDoc(docRef, { pdfData: pdfBase64, lastExport: new Date().toISOString() });
+                const windowDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'pegawai', person.id);
+                await updateDoc(windowDocRef, { pdfData: pdfBase64, lastExport: new Date().toISOString() });
                 showToast("PDF Tersinkron ke Cloud");
             } catch (e) { showToast("Gagal simpan ke cloud."); }
         };
@@ -932,19 +932,12 @@
     <main class="max-w-7xl mx-auto p-4 md:p-6 flex-grow w-full">
         <section id="dashboard" class="tab-content space-y-8 text-left">
             <!-- Hero Dashboard Section -->
-            <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 md:p-12 rounded-[2.5rem] text-white shadow-2xl shadow-blue-200 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8">
-                <div class="relative z-10 space-y-4 max-w-xl">
-                    <h2 class="text-3xl md:text-5xl font-black leading-tight tracking-tight">Selamat Datang di Portal SKUMPTK Digital</h2>
-                    <p class="text-blue-100 text-sm md:text-base font-medium">Sistem digitalisasi Surat Keterangan Untuk Mendapatkan Pembayaran Tunjangan Keluarga (KP4). Silakan isi formulir di bawah ini.</p>
-                    <div class="pt-4">
-                        <button onclick="switchTab('formulir')" class="bg-white text-blue-600 px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg hover:bg-blue-50 transition-all flex items-center gap-3 active:scale-95">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                            Mulai Isi Formulir SKUMPTK
-                        </button>
-                    </div>
-                </div>
-                <div class="hidden lg:block relative z-10">
-                    <svg class="w-48 h-48 opacity-20" fill="currentColor" viewBox="0 0 20 20"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a7 7 0 017 7v1H1v-1a5 5 0 018-4.33A6.97 6.97 0 007.5 16c0 .34.024.673.07 1H1z"></path></svg>
+            <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 md:p-12 rounded-[2.5rem] text-white shadow-2xl shadow-blue-200 relative overflow-hidden flex items-center justify-center">
+                <div class="relative z-10">
+                    <button onclick="switchTab('formulir')" class="bg-white text-blue-600 px-8 py-6 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg hover:bg-blue-50 transition-all flex items-center gap-3 active:scale-95 text-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        Mulai Isi Formulir SKUMPTK
+                    </button>
                 </div>
                 <div class="absolute -bottom-10 -right-10 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
             </div>
