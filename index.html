@@ -404,8 +404,8 @@
             const childRows = document.getElementById('edit-family-summary-body').querySelectorAll('tr[data-child-row], tr:has(button[onclick*=\"remove\"])');
             data.jumlah_anak = childRows.length;
             try {
-                const windowDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'pegawai', docId);
-                await updateDoc(windowDocRef, data);
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'pegawai', docId);
+                await updateDoc(docRef, data);
                 showToast("Data Pegawai Berhasil Diperbarui");
                 window.toggleModal('modal-edit-pegawai');
             } catch (err) { showToast("Gagal memperbarui data."); }
@@ -768,6 +768,10 @@
             const lokasi = data.lokasi_ttd || 'Pandeglang';
             const tanggalISO = data.tanggal_ttd || '2026-01-05';
             const tanggalFormatted = formatTanggalIndo(tanggalISO);
+
+            // Logika label tanda tangan berdasarkan status pegawai
+            const statusLower = (data.status_pegawai || "").toLowerCase();
+            const labelKepala = statusLower.includes("guru") ? "Kepala Unit Kerja" : "Kepala Instansi";
             
             return `
             <div class=\"print-page\" id=\"skumptk-capture-area\" style=\"font-family: 'Times New Roman', Times, serif; padding: 15mm; line-height: 1.1; color: black; font-size: 12pt; background: white; text-align: left; box-sizing: border-box; width: 210mm; height: 296mm; overflow: hidden; margin: 0 auto; page-break-after: avoid; page-break-before: avoid;\">
@@ -802,7 +806,7 @@
                 <p style=\"text-align: justify; margin-top: 8px; font-size: 12pt; line-height: 1.2;\">Keterangan ini Saya buat dengan sesungguhnya dan apabila keterangan ini ternyata tidak benar (palsu), saya bersedia dituntut di muka Pengadilan berdasarkan Undang-Undang yang berlaku dan bersedia mengembalikan semua penghasilan yang telah Saya terima yang seharusnya bukan hak Saya.</p>
                 <table style=\"width: 100%; margin-top: 25px; border-collapse: collapse; font-size: 12pt; table-layout: fixed;\">
                     <tr>
-                        <td style=\"vertical-align: top; padding-left: 25mm; white-space: nowrap; overflow: hidden;\">Mengetahui:<br>Kepala Instansi,<br><br><br><br><br><span style=\"font-weight: bold;\">${data.kepala_instansi_nama || '.........................................'}</span><br>NIP. ${data.kepala_instansi_nip || '...............................................'}</td>
+                        <td style=\"vertical-align: top; padding-left: 25mm; white-space: nowrap; overflow: hidden;\">Mengetahui:<br>${labelKepala},<br><br><br><br><br><span style=\"font-weight: bold;\">${data.kepala_instansi_nama || '.........................................'}</span><br>NIP. ${data.kepala_instansi_nip || '...............................................'}</td>
                         <td style=\"vertical-align: top; padding-left: 20mm; white-space: nowrap; overflow: hidden;\">${lokasi}, ${tanggalFormatted}<br>Yang Menerangkan,<br><br><br><br><br><span style=\"font-weight: bold;\">${data.nama || '{{nama}}'}</span><br>NIP. ${data.nip || '{{nip}}'}</td>
                     </tr>
                 </table>
@@ -941,7 +945,7 @@
     <header class="bg-white border-b sticky top-0 z-40 no-print">
         <div class="max-w-7xl mx-auto px-6 flex items-center justify-between h-20">
             <div class="flex items-center gap-3">
-                <div class="bg-blue-600 p-2.5 rounded-xl text-white shadow-xl"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg></div>
+                <div class="bg-blue-600 p-2.5 rounded-xl text-white shadow-xl"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89(7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg></div>
                 <div><h1 class="font-extrabold text-xl leading-none tracking-tighter text-slate-900">SKUM<span class="text-blue-600">PTK</span></h1><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">SURAT KETERANGAN UNTUK MENDAPATKAN PEMBAYARAN TUNJANGAN KELUARGA</p></div>
             </div>
             <nav class="flex gap-1 bg-slate-100 p-1.5 rounded-xl overflow-x-auto whitespace-nowrap scrollbar-hide max-w-[60%] md:max-w-none">
