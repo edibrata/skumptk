@@ -404,8 +404,8 @@
             const childRows = document.getElementById('edit-family-summary-body').querySelectorAll('tr[data-child-row], tr:has(button[onclick*=\"remove\"])');
             data.jumlah_anak = childRows.length;
             try {
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'pegawai', docId);
-                await updateDoc(docRef, data);
+                const windowDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'pegawai', docId);
+                await updateDoc(windowDocRef, data);
                 showToast("Data Pegawai Berhasil Diperbarui");
                 window.toggleModal('modal-edit-pegawai');
             } catch (err) { showToast("Gagal memperbarui data."); }
@@ -1079,9 +1079,10 @@
                             </div>
                             <div>
                                 <span class="block text-[9px] font-black uppercase text-blue-400 tracking-widest mb-1">Informasi Penandatangan</span>
-                                <p class="text-[11px] text-slate-200 leading-relaxed font-bold">
-                                    Jika Anda berstatus GURU, Pejabat Penandatangan adalah KEPALA SEKOLAH. Jika Anda berstatus KEPALA SEKOLAH, Pejabat Penandatangan adalah KEPALA BIDANG PEMBINAAN SD DISDIKPORA KAB. PANDEGLANG.
-                                </p>
+                                <ol class="text-[11px] text-slate-200 leading-relaxed font-bold list-decimal pl-4">
+                                    <li>Jika Anda berstatus guru, Pejabat Penandatangannya adalah Kepala Sekolah.</li>
+                                    <li>Jika Anda berstatus Kepala Sekolah, Pejabat Penandatangannya adalah Kepala Bidang Pembinaan Sekolah Dasar Disdikpora Kabupaten Pandeglang.</li>
+                                </ol>
                             </div>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1155,9 +1156,10 @@
                         </div>
                         <div>
                             <span class="block text-[9px] font-black uppercase text-blue-600 tracking-widest mb-1">Informasi Penandatangan</span>
-                            <p class="text-[11px] text-blue-800 leading-relaxed font-bold">
-                                Jika Anda berstatus GURU, Pejabat Penandatangan adalah KEPALA SEKOLAH. Jika Anda berstatus KEPALA SEKOLAH, Pejabat Penandatangan adalah KEPALA BIDANG PEMBINAAN SD DISDIKPORA KAB. PANDEGLANG.
-                            </p>
+                            <ol class="text-[11px] text-blue-800 leading-relaxed font-bold list-decimal pl-4">
+                                <li>Jika Anda berstatus guru, Pejabat Penandatangannya adalah Kepala Sekolah.</li>
+                                <li>Jika Anda berstatus Kepala Sekolah, Pejabat Penandatangannya adalah Kepala Bidang Pembinaan Sekolah Dasar Disdikpora Kabupaten Pandeglang.</li>
+                            </ol>
                         </div>
                     </div>
                     <div><label class="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Lokasi TTD</label><input type="text" name="lokasi_ttd" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none mt-1 font-black text-left"></div>
